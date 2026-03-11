@@ -1,0 +1,2999 @@
+{
+  "model": "Llama 70b",
+  "results": {
+    "BIRD Training": {
+      "Human Resources": [
+        {
+          "query_id": 1,
+          "exec_acc": 78,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 81,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 82,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 76,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 76,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 78,
+            "Cogito 70b": 77,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 79,
+            "Cogito 70b": 75,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 73,
+            "Cogito 70b": 70,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 90,
+            "GPT": 75,
+            "Cogito 70b": 75,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 72,
+            "Cogito 70b": 75,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 82,
+            "Cogito 70b": 77,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 75,
+            "Cogito 70b": 71,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 83,
+            "Cogito 70b": 79,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 81,
+            "Cogito 70b": 79,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 73,
+            "Cogito 70b": 76,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 56,
+          "exact_match": 47,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 65,
+            "Llama 70b": 55
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 62,
+          "exact_match": 44,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 68,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 68,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 65,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 59,
+          "exact_match": 43,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 70,
+            "Llama 70b": 60
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 70,
+          "exact_match": 55,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 67,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 78,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 85,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 82,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 80,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 81,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 69,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 71,
+            "Cogito 70b": 80,
+            "Llama 70b": 69
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 70,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 72,
+            "Cogito 70b": 74,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 79,
+            "Cogito 70b": 63,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 67,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 76,
+            "Cogito 70b": 80,
+            "Llama 70b": 64
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 71,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 75,
+            "Llama 70b": 59
+          }
+        }
+      ],
+      "Football team": [
+        {
+          "query_id": 1,
+          "exec_acc": 81,
+          "exact_match": 72,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 76,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 80,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 82,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 75,
+            "Cogito 70b": 72,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 80,
+            "Cogito 70b": 78,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 78,
+            "Cogito 70b": 76,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 74,
+            "Cogito 70b": 76,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 76,
+            "Cogito 70b": 73,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 74,
+            "Cogito 70b": 80,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 85,
+            "Cogito 70b": 79,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 83,
+            "Cogito 70b": 70,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 74,
+            "Cogito 70b": 70,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 75,
+            "Cogito 70b": 74,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 63,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 64,
+            "Llama 70b": 61
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 56,
+          "exact_match": 43,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 69,
+            "Llama 70b": 62
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 67,
+          "exact_match": 56,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 70,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 67,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 65,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 55,
+          "exact_match": 43,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 67,
+            "Llama 70b": 62
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 85,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 78,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 77,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 79,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 79,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 64,
+          "exact_match": 51,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 66,
+            "Cogito 70b": 80,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 69,
+          "exact_match": 54,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 76,
+            "Cogito 70b": 62,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 67,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 67,
+            "Cogito 70b": 76,
+            "Llama 70b": 60
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 73,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 77,
+            "Cogito 70b": 62,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 67,
+          "exact_match": 56,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 75,
+            "Cogito 70b": 70,
+            "Llama 70b": 66
+          }
+        }
+      ],
+      "Chicago Crimes": [
+        {
+          "query_id": 1,
+          "exec_acc": 79,
+          "exact_match": 68,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 85,
+          "exact_match": 77,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 78,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 85,
+          "exact_match": 72,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 83,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 79,
+            "Cogito 70b": 80,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 73,
+            "Cogito 70b": 72,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 76,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 73,
+            "Cogito 70b": 73,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 74,
+            "Cogito 70b": 70,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 72,
+            "Cogito 70b": 70,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 77,
+            "Cogito 70b": 74,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 83,
+            "Cogito 70b": 75,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 70,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 72,
+            "Cogito 70b": 75,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 58,
+          "exact_match": 46,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 61,
+            "Llama 70b": 64
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 69,
+          "exact_match": 55,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 60,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 60,
+          "exact_match": 44,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 66,
+            "Llama 70b": 64
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 59,
+          "exact_match": 47,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 68,
+            "Llama 70b": 59
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 58,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 69,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 83,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 80,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 77,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 77,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 83,
+          "exact_match": 74,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 63,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 80,
+            "Cogito 70b": 70,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 64,
+          "exact_match": 46,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 72,
+            "Cogito 70b": 63,
+            "Llama 70b": 64
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 62,
+          "exact_match": 51,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 80,
+            "Cogito 70b": 74,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 69,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 76,
+            "Cogito 70b": 70,
+            "Llama 70b": 68
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 65,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 72,
+            "Cogito 70b": 67,
+            "Llama 70b": 75
+          }
+        }
+      ]
+    },
+    "BIRD Developer": {
+      "European Schools": [
+        {
+          "query_id": 1,
+          "exec_acc": 81,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 82,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 76,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 90,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 77,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 76,
+          "exact_match": 68,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 71,
+            "Cogito 70b": 78,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 81,
+            "Cogito 70b": 76,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 72,
+            "Cogito 70b": 76,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 75,
+            "Cogito 70b": 78,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 74,
+            "Cogito 70b": 77,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 77,
+            "Cogito 70b": 71,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 76,
+            "Cogito 70b": 78,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 71,
+            "Cogito 70b": 70,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 78,
+            "Cogito 70b": 79,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 81,
+            "Cogito 70b": 79,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 57,
+          "exact_match": 41,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 63,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 66,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 69,
+            "Llama 70b": 55
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 59,
+          "exact_match": 44,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 61,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 61,
+          "exact_match": 51,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 65,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 62,
+          "exact_match": 48,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 61,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 85,
+          "exact_match": 70,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 81,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 84,
+          "exact_match": 74,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 77,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 81,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 69,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 79,
+            "Cogito 70b": 79,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 78,
+            "Cogito 70b": 79,
+            "Llama 70b": 59
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 65,
+          "exact_match": 48,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 73,
+            "Cogito 70b": 65,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 74,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 67,
+            "Cogito 70b": 67,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 72,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 65,
+            "Cogito 70b": 66,
+            "Llama 70b": 71
+          }
+        }
+      ],
+      "Soccer teams": [
+        {
+          "query_id": 1,
+          "exec_acc": 83,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 82,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 82,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 85,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 83,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 78,
+            "Cogito 70b": 77,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 83,
+            "Cogito 70b": 74,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 73,
+            "Cogito 70b": 78,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 80,
+            "Cogito 70b": 76,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 78,
+            "Cogito 70b": 74,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 78,
+            "Cogito 70b": 80,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 75,
+            "Cogito 70b": 75,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 81,
+            "Cogito 70b": 76,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 77,
+            "Cogito 70b": 77,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 82,
+            "Cogito 70b": 75,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 56,
+          "exact_match": 46,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 60,
+            "Llama 70b": 57
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 59,
+          "exact_match": 44,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 61,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 62,
+          "exact_match": 49,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 60,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 67,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 69,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 60,
+          "exact_match": 42,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 60,
+            "Llama 70b": 61
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 85,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 83,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 76,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 84,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 69,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 76,
+            "Cogito 70b": 71,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 67,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 79,
+            "Cogito 70b": 72,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 60,
+          "exact_match": 48,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 78,
+            "Cogito 70b": 76,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 62,
+          "exact_match": 46,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 75,
+            "Cogito 70b": 63,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 68,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 73,
+            "Cogito 70b": 74,
+            "Llama 70b": 67
+          }
+        }
+      ],
+      "Altro database": [
+        {
+          "query_id": 1,
+          "exec_acc": 84,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 82,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 76,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 90,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 81,
+          "exact_match": 68,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 79,
+          "exact_match": 68,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 75,
+            "Cogito 70b": 77,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 78,
+            "Cogito 70b": 72,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 77,
+            "Cogito 70b": 73,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 77,
+            "Cogito 70b": 79,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 72,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 71,
+            "Cogito 70b": 77,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 85,
+            "Cogito 70b": 72,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 74,
+            "Cogito 70b": 70,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 81,
+            "Cogito 70b": 76,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 84,
+            "Cogito 70b": 75,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 55,
+          "exact_match": 47,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 69,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 65,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 68,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 62,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 65,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 60,
+          "exact_match": 45,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 66,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 66,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 62,
+            "Llama 70b": 59
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 84,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 83,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 77,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 77,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 79,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 63,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 71,
+            "Cogito 70b": 68,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 63,
+          "exact_match": 48,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 73,
+            "Cogito 70b": 71,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 68,
+          "exact_match": 55,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 78,
+            "Cogito 70b": 63,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 66,
+          "exact_match": 49,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 70,
+            "Cogito 70b": 69,
+            "Llama 70b": 66
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 70,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 80,
+            "Cogito 70b": 74,
+            "Llama 70b": 57
+          }
+        }
+      ]
+    },
+    "SPIDER": {
+      "Database 1": [
+        {
+          "query_id": 1,
+          "exec_acc": 81,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 85,
+          "exact_match": 72,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 76,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 85,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 82,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 74,
+            "Cogito 70b": 73,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 75,
+            "Cogito 70b": 76,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 71,
+            "Cogito 70b": 70,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 74,
+            "Cogito 70b": 71,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 77,
+            "Cogito 70b": 74,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 70,
+            "Cogito 70b": 70,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 84,
+            "Cogito 70b": 78,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 81,
+            "Cogito 70b": 77,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 79,
+            "Cogito 70b": 75,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 63,
+          "exact_match": 53,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 60,
+            "Llama 70b": 59
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 66,
+          "exact_match": 54,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 60,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 70,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 64,
+            "Llama 70b": 62
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 55,
+          "exact_match": 39,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 66,
+            "Llama 70b": 68
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 67,
+          "exact_match": 56,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 70,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 81,
+          "exact_match": 70,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 78,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 85,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 77,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 84,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 82,
+          "exact_match": 70,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 60,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 65,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 69,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 79,
+            "Cogito 70b": 60,
+            "Llama 70b": 62
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 62,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 80,
+            "Cogito 70b": 66,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 73,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 76,
+            "Cogito 70b": 74,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 70,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 66,
+            "Cogito 70b": 68,
+            "Llama 70b": 67
+          }
+        }
+      ],
+      "Database 2": [
+        {
+          "query_id": 1,
+          "exec_acc": 76,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 81,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 82,
+          "exact_match": 71,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 76,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 90,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 85,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 79,
+            "Cogito 70b": 73,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 76,
+            "GPT": 73,
+            "Cogito 70b": 73,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 75,
+            "Cogito 70b": 74,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 70,
+            "Cogito 70b": 70,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 58,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 81,
+            "Cogito 70b": 71,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 72,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 73,
+            "Cogito 70b": 72,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 84,
+            "Cogito 70b": 73,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 62,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 78,
+            "Cogito 70b": 70,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 85,
+            "Cogito 70b": 73,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 60,
+          "exact_match": 44,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 67,
+            "Cogito 70b": 67,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 60,
+          "exact_match": 51,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 68,
+            "Cogito 70b": 64,
+            "Llama 70b": 63
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 66,
+          "exact_match": 51,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 70,
+            "Cogito 70b": 68,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 60,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 63,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 57,
+          "exact_match": 39,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 68,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 83,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 85,
+          "exact_match": 72,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 77,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 81,
+            "Cogito 70b": 80,
+            "Llama 70b": 78
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 78,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 82,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 89,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 71,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 79,
+            "GPT": 67,
+            "Cogito 70b": 60,
+            "Llama 70b": 61
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 66,
+            "Cogito 70b": 71,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 73,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 73,
+            "Cogito 70b": 76,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 62,
+          "exact_match": 50,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 71,
+            "Cogito 70b": 76,
+            "Llama 70b": 58
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 63,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 78,
+            "GPT": 77,
+            "Cogito 70b": 66,
+            "Llama 70b": 61
+          }
+        }
+      ],
+      "Database 3": [
+        {
+          "query_id": 1,
+          "exec_acc": 83,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 2,
+          "exec_acc": 83,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 3,
+          "exec_acc": 82,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 80,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 4,
+          "exec_acc": 83,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 79
+          }
+        },
+        {
+          "query_id": 5,
+          "exec_acc": 84,
+          "exact_match": 69,
+          "tdex": {
+            "Claude": 85,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 77
+          }
+        },
+        {
+          "query_id": 6,
+          "exec_acc": 75,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 80,
+            "Cogito 70b": 79,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 7,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 87,
+            "GPT": 78,
+            "Cogito 70b": 75,
+            "Llama 70b": 73
+          }
+        },
+        {
+          "query_id": 8,
+          "exec_acc": 75,
+          "exact_match": 61,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 71,
+            "Cogito 70b": 74,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 9,
+          "exec_acc": 75,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 74,
+            "GPT": 79,
+            "Cogito 70b": 70,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 10,
+          "exec_acc": 75,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 70,
+            "Cogito 70b": 74,
+            "Llama 70b": 74
+          }
+        },
+        {
+          "query_id": 11,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 71,
+            "GPT": 84,
+            "Cogito 70b": 75,
+            "Llama 70b": 71
+          }
+        },
+        {
+          "query_id": 12,
+          "exec_acc": 75,
+          "exact_match": 63,
+          "tdex": {
+            "Claude": 81,
+            "GPT": 77,
+            "Cogito 70b": 73,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 13,
+          "exec_acc": 75,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 76,
+            "Cogito 70b": 71,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 14,
+          "exec_acc": 75,
+          "exact_match": 60,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 85,
+            "Cogito 70b": 79,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 15,
+          "exec_acc": 75,
+          "exact_match": 67,
+          "tdex": {
+            "Claude": 82,
+            "GPT": 72,
+            "Cogito 70b": 70,
+            "Llama 70b": 72
+          }
+        },
+        {
+          "query_id": 16,
+          "exec_acc": 66,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 65,
+            "Cogito 70b": 63,
+            "Llama 70b": 55
+          }
+        },
+        {
+          "query_id": 17,
+          "exec_acc": 67,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 69,
+            "Cogito 70b": 60,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 18,
+          "exec_acc": 59,
+          "exact_match": 46,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 60,
+            "Llama 70b": 67
+          }
+        },
+        {
+          "query_id": 19,
+          "exec_acc": 69,
+          "exact_match": 52,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 66,
+            "Cogito 70b": 66,
+            "Llama 70b": 64
+          }
+        },
+        {
+          "query_id": 20,
+          "exec_acc": 67,
+          "exact_match": 57,
+          "tdex": {
+            "Claude": 70,
+            "GPT": 67,
+            "Cogito 70b": 61,
+            "Llama 70b": 70
+          }
+        },
+        {
+          "query_id": 21,
+          "exec_acc": 84,
+          "exact_match": 76,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 22,
+          "exec_acc": 81,
+          "exact_match": 65,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 85,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 23,
+          "exec_acc": 82,
+          "exact_match": 66,
+          "tdex": {
+            "Claude": 83,
+            "GPT": 83,
+            "Cogito 70b": 80,
+            "Llama 70b": 80
+          }
+        },
+        {
+          "query_id": 24,
+          "exec_acc": 84,
+          "exact_match": 73,
+          "tdex": {
+            "Claude": 88,
+            "GPT": 84,
+            "Cogito 70b": 80,
+            "Llama 70b": 76
+          }
+        },
+        {
+          "query_id": 25,
+          "exec_acc": 76,
+          "exact_match": 64,
+          "tdex": {
+            "Claude": 86,
+            "GPT": 82,
+            "Cogito 70b": 80,
+            "Llama 70b": 75
+          }
+        },
+        {
+          "query_id": 26,
+          "exec_acc": 73,
+          "exact_match": 59,
+          "tdex": {
+            "Claude": 75,
+            "GPT": 76,
+            "Cogito 70b": 66,
+            "Llama 70b": 65
+          }
+        },
+        {
+          "query_id": 27,
+          "exec_acc": 71,
+          "exact_match": 54,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 65,
+            "Cogito 70b": 69,
+            "Llama 70b": 60
+          }
+        },
+        {
+          "query_id": 28,
+          "exec_acc": 71,
+          "exact_match": 54,
+          "tdex": {
+            "Claude": 77,
+            "GPT": 69,
+            "Cogito 70b": 74,
+            "Llama 70b": 56
+          }
+        },
+        {
+          "query_id": 29,
+          "exec_acc": 67,
+          "exact_match": 56,
+          "tdex": {
+            "Claude": 80,
+            "GPT": 76,
+            "Cogito 70b": 64,
+            "Llama 70b": 57
+          }
+        },
+        {
+          "query_id": 30,
+          "exec_acc": 63,
+          "exact_match": 55,
+          "tdex": {
+            "Claude": 73,
+            "GPT": 69,
+            "Cogito 70b": 69,
+            "Llama 70b": 55
+          }
+        }
+      ]
+    }
+  }
+}

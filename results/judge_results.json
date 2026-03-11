@@ -1,0 +1,4428 @@
+{
+  "judge_scores": {
+    "Claude": {
+      "BIRD Training": {
+        "Human Resources": [
+          {
+            "query_id": 1,
+            "score": 98
+          },
+          {
+            "query_id": 2,
+            "score": 96
+          },
+          {
+            "query_id": 3,
+            "score": 95
+          },
+          {
+            "query_id": 4,
+            "score": 90
+          },
+          {
+            "query_id": 5,
+            "score": 98
+          },
+          {
+            "query_id": 6,
+            "score": 97
+          },
+          {
+            "query_id": 7,
+            "score": 83
+          },
+          {
+            "query_id": 8,
+            "score": 98
+          },
+          {
+            "query_id": 9,
+            "score": 87
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 85
+          },
+          {
+            "query_id": 12,
+            "score": 82
+          },
+          {
+            "query_id": 13,
+            "score": 75
+          },
+          {
+            "query_id": 14,
+            "score": 81
+          },
+          {
+            "query_id": 15,
+            "score": 72
+          },
+          {
+            "query_id": 16,
+            "score": 76
+          },
+          {
+            "query_id": 17,
+            "score": 63
+          },
+          {
+            "query_id": 18,
+            "score": 68
+          },
+          {
+            "query_id": 19,
+            "score": 63
+          },
+          {
+            "query_id": 20,
+            "score": 61
+          },
+          {
+            "query_id": 21,
+            "score": 86
+          },
+          {
+            "query_id": 22,
+            "score": 92
+          },
+          {
+            "query_id": 23,
+            "score": 100
+          },
+          {
+            "query_id": 24,
+            "score": 80
+          },
+          {
+            "query_id": 25,
+            "score": 89
+          },
+          {
+            "query_id": 26,
+            "score": 95
+          },
+          {
+            "query_id": 27,
+            "score": 80
+          },
+          {
+            "query_id": 28,
+            "score": 74
+          },
+          {
+            "query_id": 29,
+            "score": 64
+          },
+          {
+            "query_id": 30,
+            "score": 67
+          }
+        ],
+        "Football team": [
+          {
+            "query_id": 1,
+            "score": 100
+          },
+          {
+            "query_id": 2,
+            "score": 99
+          },
+          {
+            "query_id": 3,
+            "score": 99
+          },
+          {
+            "query_id": 4,
+            "score": 95
+          },
+          {
+            "query_id": 5,
+            "score": 95
+          },
+          {
+            "query_id": 6,
+            "score": 93
+          },
+          {
+            "query_id": 7,
+            "score": 92
+          },
+          {
+            "query_id": 8,
+            "score": 89
+          },
+          {
+            "query_id": 9,
+            "score": 82
+          },
+          {
+            "query_id": 10,
+            "score": 81
+          },
+          {
+            "query_id": 11,
+            "score": 93
+          },
+          {
+            "query_id": 12,
+            "score": 76
+          },
+          {
+            "query_id": 13,
+            "score": 80
+          },
+          {
+            "query_id": 14,
+            "score": 90
+          },
+          {
+            "query_id": 15,
+            "score": 73
+          },
+          {
+            "query_id": 16,
+            "score": 81
+          },
+          {
+            "query_id": 17,
+            "score": 70
+          },
+          {
+            "query_id": 18,
+            "score": 74
+          },
+          {
+            "query_id": 19,
+            "score": 68
+          },
+          {
+            "query_id": 20,
+            "score": 58
+          },
+          {
+            "query_id": 21,
+            "score": 100
+          },
+          {
+            "query_id": 22,
+            "score": 100
+          },
+          {
+            "query_id": 23,
+            "score": 97
+          },
+          {
+            "query_id": 24,
+            "score": 92
+          },
+          {
+            "query_id": 25,
+            "score": 83
+          },
+          {
+            "query_id": 26,
+            "score": 83
+          },
+          {
+            "query_id": 27,
+            "score": 86
+          },
+          {
+            "query_id": 28,
+            "score": 66
+          },
+          {
+            "query_id": 29,
+            "score": 65
+          },
+          {
+            "query_id": 30,
+            "score": 62
+          }
+        ],
+        "Chicago Crimes": [
+          {
+            "query_id": 1,
+            "score": 95
+          },
+          {
+            "query_id": 2,
+            "score": 100
+          },
+          {
+            "query_id": 3,
+            "score": 96
+          },
+          {
+            "query_id": 4,
+            "score": 91
+          },
+          {
+            "query_id": 5,
+            "score": 99
+          },
+          {
+            "query_id": 6,
+            "score": 93
+          },
+          {
+            "query_id": 7,
+            "score": 95
+          },
+          {
+            "query_id": 8,
+            "score": 94
+          },
+          {
+            "query_id": 9,
+            "score": 81
+          },
+          {
+            "query_id": 10,
+            "score": 83
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 77
+          },
+          {
+            "query_id": 13,
+            "score": 83
+          },
+          {
+            "query_id": 14,
+            "score": 86
+          },
+          {
+            "query_id": 15,
+            "score": 73
+          },
+          {
+            "query_id": 16,
+            "score": 73
+          },
+          {
+            "query_id": 17,
+            "score": 70
+          },
+          {
+            "query_id": 18,
+            "score": 67
+          },
+          {
+            "query_id": 19,
+            "score": 59
+          },
+          {
+            "query_id": 20,
+            "score": 60
+          },
+          {
+            "query_id": 21,
+            "score": 93
+          },
+          {
+            "query_id": 22,
+            "score": 95
+          },
+          {
+            "query_id": 23,
+            "score": 92
+          },
+          {
+            "query_id": 24,
+            "score": 93
+          },
+          {
+            "query_id": 25,
+            "score": 80
+          },
+          {
+            "query_id": 26,
+            "score": 94
+          },
+          {
+            "query_id": 27,
+            "score": 80
+          },
+          {
+            "query_id": 28,
+            "score": 68
+          },
+          {
+            "query_id": 29,
+            "score": 64
+          },
+          {
+            "query_id": 30,
+            "score": 58
+          }
+        ]
+      },
+      "BIRD Developer": {
+        "European Schools": [
+          {
+            "query_id": 1,
+            "score": 89
+          },
+          {
+            "query_id": 2,
+            "score": 92
+          },
+          {
+            "query_id": 3,
+            "score": 91
+          },
+          {
+            "query_id": 4,
+            "score": 94
+          },
+          {
+            "query_id": 5,
+            "score": 92
+          },
+          {
+            "query_id": 6,
+            "score": 85
+          },
+          {
+            "query_id": 7,
+            "score": 82
+          },
+          {
+            "query_id": 8,
+            "score": 83
+          },
+          {
+            "query_id": 9,
+            "score": 87
+          },
+          {
+            "query_id": 10,
+            "score": 86
+          },
+          {
+            "query_id": 11,
+            "score": 74
+          },
+          {
+            "query_id": 12,
+            "score": 81
+          },
+          {
+            "query_id": 13,
+            "score": 83
+          },
+          {
+            "query_id": 14,
+            "score": 87
+          },
+          {
+            "query_id": 15,
+            "score": 78
+          },
+          {
+            "query_id": 16,
+            "score": 71
+          },
+          {
+            "query_id": 17,
+            "score": 75
+          },
+          {
+            "query_id": 18,
+            "score": 76
+          },
+          {
+            "query_id": 19,
+            "score": 73
+          },
+          {
+            "query_id": 20,
+            "score": 75
+          },
+          {
+            "query_id": 21,
+            "score": 89
+          },
+          {
+            "query_id": 22,
+            "score": 94
+          },
+          {
+            "query_id": 23,
+            "score": 85
+          },
+          {
+            "query_id": 24,
+            "score": 90
+          },
+          {
+            "query_id": 25,
+            "score": 86
+          },
+          {
+            "query_id": 26,
+            "score": 76
+          },
+          {
+            "query_id": 27,
+            "score": 78
+          },
+          {
+            "query_id": 28,
+            "score": 71
+          },
+          {
+            "query_id": 29,
+            "score": 75
+          },
+          {
+            "query_id": 30,
+            "score": 68
+          }
+        ],
+        "Soccer teams": [
+          {
+            "query_id": 1,
+            "score": 83
+          },
+          {
+            "query_id": 2,
+            "score": 90
+          },
+          {
+            "query_id": 3,
+            "score": 94
+          },
+          {
+            "query_id": 4,
+            "score": 87
+          },
+          {
+            "query_id": 5,
+            "score": 92
+          },
+          {
+            "query_id": 6,
+            "score": 87
+          },
+          {
+            "query_id": 7,
+            "score": 73
+          },
+          {
+            "query_id": 8,
+            "score": 88
+          },
+          {
+            "query_id": 9,
+            "score": 95
+          },
+          {
+            "query_id": 10,
+            "score": 80
+          },
+          {
+            "query_id": 11,
+            "score": 80
+          },
+          {
+            "query_id": 12,
+            "score": 78
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 76
+          },
+          {
+            "query_id": 15,
+            "score": 87
+          },
+          {
+            "query_id": 16,
+            "score": 75
+          },
+          {
+            "query_id": 17,
+            "score": 75
+          },
+          {
+            "query_id": 18,
+            "score": 76
+          },
+          {
+            "query_id": 19,
+            "score": 69
+          },
+          {
+            "query_id": 20,
+            "score": 76
+          },
+          {
+            "query_id": 21,
+            "score": 84
+          },
+          {
+            "query_id": 22,
+            "score": 86
+          },
+          {
+            "query_id": 23,
+            "score": 84
+          },
+          {
+            "query_id": 24,
+            "score": 95
+          },
+          {
+            "query_id": 25,
+            "score": 92
+          },
+          {
+            "query_id": 26,
+            "score": 78
+          },
+          {
+            "query_id": 27,
+            "score": 71
+          },
+          {
+            "query_id": 28,
+            "score": 72
+          },
+          {
+            "query_id": 29,
+            "score": 75
+          },
+          {
+            "query_id": 30,
+            "score": 78
+          }
+        ],
+        "Altro database": [
+          {
+            "query_id": 1,
+            "score": 89
+          },
+          {
+            "query_id": 2,
+            "score": 93
+          },
+          {
+            "query_id": 3,
+            "score": 84
+          },
+          {
+            "query_id": 4,
+            "score": 91
+          },
+          {
+            "query_id": 5,
+            "score": 82
+          },
+          {
+            "query_id": 6,
+            "score": 88
+          },
+          {
+            "query_id": 7,
+            "score": 78
+          },
+          {
+            "query_id": 8,
+            "score": 79
+          },
+          {
+            "query_id": 9,
+            "score": 82
+          },
+          {
+            "query_id": 10,
+            "score": 88
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 83
+          },
+          {
+            "query_id": 13,
+            "score": 74
+          },
+          {
+            "query_id": 14,
+            "score": 81
+          },
+          {
+            "query_id": 15,
+            "score": 85
+          },
+          {
+            "query_id": 16,
+            "score": 71
+          },
+          {
+            "query_id": 17,
+            "score": 73
+          },
+          {
+            "query_id": 18,
+            "score": 71
+          },
+          {
+            "query_id": 19,
+            "score": 77
+          },
+          {
+            "query_id": 20,
+            "score": 69
+          },
+          {
+            "query_id": 21,
+            "score": 91
+          },
+          {
+            "query_id": 22,
+            "score": 88
+          },
+          {
+            "query_id": 23,
+            "score": 87
+          },
+          {
+            "query_id": 24,
+            "score": 89
+          },
+          {
+            "query_id": 25,
+            "score": 87
+          },
+          {
+            "query_id": 26,
+            "score": 81
+          },
+          {
+            "query_id": 27,
+            "score": 75
+          },
+          {
+            "query_id": 28,
+            "score": 72
+          },
+          {
+            "query_id": 29,
+            "score": 78
+          },
+          {
+            "query_id": 30,
+            "score": 75
+          }
+        ]
+      },
+      "SPIDER": {
+        "Database 1": [
+          {
+            "query_id": 1,
+            "score": 94
+          },
+          {
+            "query_id": 2,
+            "score": 91
+          },
+          {
+            "query_id": 3,
+            "score": 85
+          },
+          {
+            "query_id": 4,
+            "score": 89
+          },
+          {
+            "query_id": 5,
+            "score": 88
+          },
+          {
+            "query_id": 6,
+            "score": 88
+          },
+          {
+            "query_id": 7,
+            "score": 86
+          },
+          {
+            "query_id": 8,
+            "score": 82
+          },
+          {
+            "query_id": 9,
+            "score": 90
+          },
+          {
+            "query_id": 10,
+            "score": 83
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 81
+          },
+          {
+            "query_id": 13,
+            "score": 86
+          },
+          {
+            "query_id": 14,
+            "score": 82
+          },
+          {
+            "query_id": 15,
+            "score": 79
+          },
+          {
+            "query_id": 16,
+            "score": 75
+          },
+          {
+            "query_id": 17,
+            "score": 72
+          },
+          {
+            "query_id": 18,
+            "score": 74
+          },
+          {
+            "query_id": 19,
+            "score": 69
+          },
+          {
+            "query_id": 20,
+            "score": 77
+          },
+          {
+            "query_id": 21,
+            "score": 92
+          },
+          {
+            "query_id": 22,
+            "score": 83
+          },
+          {
+            "query_id": 23,
+            "score": 86
+          },
+          {
+            "query_id": 24,
+            "score": 94
+          },
+          {
+            "query_id": 25,
+            "score": 85
+          },
+          {
+            "query_id": 26,
+            "score": 72
+          },
+          {
+            "query_id": 27,
+            "score": 81
+          },
+          {
+            "query_id": 28,
+            "score": 83
+          },
+          {
+            "query_id": 29,
+            "score": 77
+          },
+          {
+            "query_id": 30,
+            "score": 84
+          }
+        ],
+        "Database 2": [
+          {
+            "query_id": 1,
+            "score": 92
+          },
+          {
+            "query_id": 2,
+            "score": 84
+          },
+          {
+            "query_id": 3,
+            "score": 96
+          },
+          {
+            "query_id": 4,
+            "score": 86
+          },
+          {
+            "query_id": 5,
+            "score": 92
+          },
+          {
+            "query_id": 6,
+            "score": 97
+          },
+          {
+            "query_id": 7,
+            "score": 81
+          },
+          {
+            "query_id": 8,
+            "score": 86
+          },
+          {
+            "query_id": 9,
+            "score": 86
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 89
+          },
+          {
+            "query_id": 12,
+            "score": 83
+          },
+          {
+            "query_id": 13,
+            "score": 79
+          },
+          {
+            "query_id": 14,
+            "score": 81
+          },
+          {
+            "query_id": 15,
+            "score": 85
+          },
+          {
+            "query_id": 16,
+            "score": 71
+          },
+          {
+            "query_id": 17,
+            "score": 72
+          },
+          {
+            "query_id": 18,
+            "score": 73
+          },
+          {
+            "query_id": 19,
+            "score": 71
+          },
+          {
+            "query_id": 20,
+            "score": 72
+          },
+          {
+            "query_id": 21,
+            "score": 89
+          },
+          {
+            "query_id": 22,
+            "score": 94
+          },
+          {
+            "query_id": 23,
+            "score": 86
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 91
+          },
+          {
+            "query_id": 26,
+            "score": 83
+          },
+          {
+            "query_id": 27,
+            "score": 70
+          },
+          {
+            "query_id": 28,
+            "score": 75
+          },
+          {
+            "query_id": 29,
+            "score": 72
+          },
+          {
+            "query_id": 30,
+            "score": 78
+          }
+        ],
+        "Database 3": [
+          {
+            "query_id": 1,
+            "score": 93
+          },
+          {
+            "query_id": 2,
+            "score": 92
+          },
+          {
+            "query_id": 3,
+            "score": 86
+          },
+          {
+            "query_id": 4,
+            "score": 93
+          },
+          {
+            "query_id": 5,
+            "score": 84
+          },
+          {
+            "query_id": 6,
+            "score": 80
+          },
+          {
+            "query_id": 7,
+            "score": 74
+          },
+          {
+            "query_id": 8,
+            "score": 86
+          },
+          {
+            "query_id": 9,
+            "score": 93
+          },
+          {
+            "query_id": 10,
+            "score": 93
+          },
+          {
+            "query_id": 11,
+            "score": 87
+          },
+          {
+            "query_id": 12,
+            "score": 80
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 77
+          },
+          {
+            "query_id": 15,
+            "score": 82
+          },
+          {
+            "query_id": 16,
+            "score": 70
+          },
+          {
+            "query_id": 17,
+            "score": 76
+          },
+          {
+            "query_id": 18,
+            "score": 72
+          },
+          {
+            "query_id": 19,
+            "score": 77
+          },
+          {
+            "query_id": 20,
+            "score": 67
+          },
+          {
+            "query_id": 21,
+            "score": 90
+          },
+          {
+            "query_id": 22,
+            "score": 95
+          },
+          {
+            "query_id": 23,
+            "score": 88
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 89
+          },
+          {
+            "query_id": 26,
+            "score": 72
+          },
+          {
+            "query_id": 27,
+            "score": 68
+          },
+          {
+            "query_id": 28,
+            "score": 83
+          },
+          {
+            "query_id": 29,
+            "score": 85
+          },
+          {
+            "query_id": 30,
+            "score": 76
+          }
+        ]
+      }
+    },
+    "GPT": {
+      "BIRD Training": {
+        "Human Resources": [
+          {
+            "query_id": 1,
+            "score": 88
+          },
+          {
+            "query_id": 2,
+            "score": 86
+          },
+          {
+            "query_id": 3,
+            "score": 82
+          },
+          {
+            "query_id": 4,
+            "score": 88
+          },
+          {
+            "query_id": 5,
+            "score": 86
+          },
+          {
+            "query_id": 6,
+            "score": 73
+          },
+          {
+            "query_id": 7,
+            "score": 80
+          },
+          {
+            "query_id": 8,
+            "score": 88
+          },
+          {
+            "query_id": 9,
+            "score": 80
+          },
+          {
+            "query_id": 10,
+            "score": 87
+          },
+          {
+            "query_id": 11,
+            "score": 82
+          },
+          {
+            "query_id": 12,
+            "score": 85
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 82
+          },
+          {
+            "query_id": 15,
+            "score": 79
+          },
+          {
+            "query_id": 16,
+            "score": 76
+          },
+          {
+            "query_id": 17,
+            "score": 71
+          },
+          {
+            "query_id": 18,
+            "score": 70
+          },
+          {
+            "query_id": 19,
+            "score": 75
+          },
+          {
+            "query_id": 20,
+            "score": 66
+          },
+          {
+            "query_id": 21,
+            "score": 81
+          },
+          {
+            "query_id": 22,
+            "score": 81
+          },
+          {
+            "query_id": 23,
+            "score": 89
+          },
+          {
+            "query_id": 24,
+            "score": 84
+          },
+          {
+            "query_id": 25,
+            "score": 88
+          },
+          {
+            "query_id": 26,
+            "score": 75
+          },
+          {
+            "query_id": 27,
+            "score": 71
+          },
+          {
+            "query_id": 28,
+            "score": 71
+          },
+          {
+            "query_id": 29,
+            "score": 75
+          },
+          {
+            "query_id": 30,
+            "score": 79
+          }
+        ],
+        "Football team": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 85
+          },
+          {
+            "query_id": 3,
+            "score": 88
+          },
+          {
+            "query_id": 4,
+            "score": 83
+          },
+          {
+            "query_id": 5,
+            "score": 87
+          },
+          {
+            "query_id": 6,
+            "score": 85
+          },
+          {
+            "query_id": 7,
+            "score": 82
+          },
+          {
+            "query_id": 8,
+            "score": 80
+          },
+          {
+            "query_id": 9,
+            "score": 76
+          },
+          {
+            "query_id": 10,
+            "score": 74
+          },
+          {
+            "query_id": 11,
+            "score": 77
+          },
+          {
+            "query_id": 12,
+            "score": 79
+          },
+          {
+            "query_id": 13,
+            "score": 85
+          },
+          {
+            "query_id": 14,
+            "score": 80
+          },
+          {
+            "query_id": 15,
+            "score": 84
+          },
+          {
+            "query_id": 16,
+            "score": 71
+          },
+          {
+            "query_id": 17,
+            "score": 67
+          },
+          {
+            "query_id": 18,
+            "score": 68
+          },
+          {
+            "query_id": 19,
+            "score": 70
+          },
+          {
+            "query_id": 20,
+            "score": 73
+          },
+          {
+            "query_id": 21,
+            "score": 85
+          },
+          {
+            "query_id": 22,
+            "score": 85
+          },
+          {
+            "query_id": 23,
+            "score": 87
+          },
+          {
+            "query_id": 24,
+            "score": 89
+          },
+          {
+            "query_id": 25,
+            "score": 82
+          },
+          {
+            "query_id": 26,
+            "score": 74
+          },
+          {
+            "query_id": 27,
+            "score": 75
+          },
+          {
+            "query_id": 28,
+            "score": 73
+          },
+          {
+            "query_id": 29,
+            "score": 69
+          },
+          {
+            "query_id": 30,
+            "score": 64
+          }
+        ],
+        "Chicago Crimes": [
+          {
+            "query_id": 1,
+            "score": 87
+          },
+          {
+            "query_id": 2,
+            "score": 85
+          },
+          {
+            "query_id": 3,
+            "score": 85
+          },
+          {
+            "query_id": 4,
+            "score": 86
+          },
+          {
+            "query_id": 5,
+            "score": 89
+          },
+          {
+            "query_id": 6,
+            "score": 83
+          },
+          {
+            "query_id": 7,
+            "score": 80
+          },
+          {
+            "query_id": 8,
+            "score": 80
+          },
+          {
+            "query_id": 9,
+            "score": 74
+          },
+          {
+            "query_id": 10,
+            "score": 75
+          },
+          {
+            "query_id": 11,
+            "score": 87
+          },
+          {
+            "query_id": 12,
+            "score": 78
+          },
+          {
+            "query_id": 13,
+            "score": 73
+          },
+          {
+            "query_id": 14,
+            "score": 87
+          },
+          {
+            "query_id": 15,
+            "score": 78
+          },
+          {
+            "query_id": 16,
+            "score": 74
+          },
+          {
+            "query_id": 17,
+            "score": 65
+          },
+          {
+            "query_id": 18,
+            "score": 66
+          },
+          {
+            "query_id": 19,
+            "score": 66
+          },
+          {
+            "query_id": 20,
+            "score": 71
+          },
+          {
+            "query_id": 21,
+            "score": 86
+          },
+          {
+            "query_id": 22,
+            "score": 83
+          },
+          {
+            "query_id": 23,
+            "score": 89
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 84
+          },
+          {
+            "query_id": 26,
+            "score": 71
+          },
+          {
+            "query_id": 27,
+            "score": 76
+          },
+          {
+            "query_id": 28,
+            "score": 78
+          },
+          {
+            "query_id": 29,
+            "score": 69
+          },
+          {
+            "query_id": 30,
+            "score": 66
+          }
+        ]
+      },
+      "BIRD Developer": {
+        "European Schools": [
+          {
+            "query_id": 1,
+            "score": 87
+          },
+          {
+            "query_id": 2,
+            "score": 86
+          },
+          {
+            "query_id": 3,
+            "score": 89
+          },
+          {
+            "query_id": 4,
+            "score": 83
+          },
+          {
+            "query_id": 5,
+            "score": 81
+          },
+          {
+            "query_id": 6,
+            "score": 87
+          },
+          {
+            "query_id": 7,
+            "score": 90
+          },
+          {
+            "query_id": 8,
+            "score": 83
+          },
+          {
+            "query_id": 9,
+            "score": 83
+          },
+          {
+            "query_id": 10,
+            "score": 81
+          },
+          {
+            "query_id": 11,
+            "score": 85
+          },
+          {
+            "query_id": 12,
+            "score": 80
+          },
+          {
+            "query_id": 13,
+            "score": 89
+          },
+          {
+            "query_id": 14,
+            "score": 85
+          },
+          {
+            "query_id": 15,
+            "score": 87
+          },
+          {
+            "query_id": 16,
+            "score": 73
+          },
+          {
+            "query_id": 17,
+            "score": 70
+          },
+          {
+            "query_id": 18,
+            "score": 71
+          },
+          {
+            "query_id": 19,
+            "score": 69
+          },
+          {
+            "query_id": 20,
+            "score": 71
+          },
+          {
+            "query_id": 21,
+            "score": 85
+          },
+          {
+            "query_id": 22,
+            "score": 82
+          },
+          {
+            "query_id": 23,
+            "score": 83
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 84
+          },
+          {
+            "query_id": 26,
+            "score": 69
+          },
+          {
+            "query_id": 27,
+            "score": 72
+          },
+          {
+            "query_id": 28,
+            "score": 76
+          },
+          {
+            "query_id": 29,
+            "score": 76
+          },
+          {
+            "query_id": 30,
+            "score": 63
+          }
+        ],
+        "Soccer teams": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 89
+          },
+          {
+            "query_id": 3,
+            "score": 87
+          },
+          {
+            "query_id": 4,
+            "score": 84
+          },
+          {
+            "query_id": 5,
+            "score": 87
+          },
+          {
+            "query_id": 6,
+            "score": 85
+          },
+          {
+            "query_id": 7,
+            "score": 77
+          },
+          {
+            "query_id": 8,
+            "score": 80
+          },
+          {
+            "query_id": 9,
+            "score": 80
+          },
+          {
+            "query_id": 10,
+            "score": 79
+          },
+          {
+            "query_id": 11,
+            "score": 80
+          },
+          {
+            "query_id": 12,
+            "score": 87
+          },
+          {
+            "query_id": 13,
+            "score": 81
+          },
+          {
+            "query_id": 14,
+            "score": 84
+          },
+          {
+            "query_id": 15,
+            "score": 77
+          },
+          {
+            "query_id": 16,
+            "score": 63
+          },
+          {
+            "query_id": 17,
+            "score": 63
+          },
+          {
+            "query_id": 18,
+            "score": 68
+          },
+          {
+            "query_id": 19,
+            "score": 74
+          },
+          {
+            "query_id": 20,
+            "score": 68
+          },
+          {
+            "query_id": 21,
+            "score": 83
+          },
+          {
+            "query_id": 22,
+            "score": 90
+          },
+          {
+            "query_id": 23,
+            "score": 91
+          },
+          {
+            "query_id": 24,
+            "score": 86
+          },
+          {
+            "query_id": 25,
+            "score": 81
+          },
+          {
+            "query_id": 26,
+            "score": 73
+          },
+          {
+            "query_id": 27,
+            "score": 71
+          },
+          {
+            "query_id": 28,
+            "score": 81
+          },
+          {
+            "query_id": 29,
+            "score": 72
+          },
+          {
+            "query_id": 30,
+            "score": 75
+          }
+        ],
+        "Altro database": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 85
+          },
+          {
+            "query_id": 3,
+            "score": 88
+          },
+          {
+            "query_id": 4,
+            "score": 82
+          },
+          {
+            "query_id": 5,
+            "score": 90
+          },
+          {
+            "query_id": 6,
+            "score": 88
+          },
+          {
+            "query_id": 7,
+            "score": 72
+          },
+          {
+            "query_id": 8,
+            "score": 74
+          },
+          {
+            "query_id": 9,
+            "score": 79
+          },
+          {
+            "query_id": 10,
+            "score": 84
+          },
+          {
+            "query_id": 11,
+            "score": 78
+          },
+          {
+            "query_id": 12,
+            "score": 88
+          },
+          {
+            "query_id": 13,
+            "score": 90
+          },
+          {
+            "query_id": 14,
+            "score": 89
+          },
+          {
+            "query_id": 15,
+            "score": 78
+          },
+          {
+            "query_id": 16,
+            "score": 73
+          },
+          {
+            "query_id": 17,
+            "score": 66
+          },
+          {
+            "query_id": 18,
+            "score": 66
+          },
+          {
+            "query_id": 19,
+            "score": 72
+          },
+          {
+            "query_id": 20,
+            "score": 66
+          },
+          {
+            "query_id": 21,
+            "score": 87
+          },
+          {
+            "query_id": 22,
+            "score": 85
+          },
+          {
+            "query_id": 23,
+            "score": 88
+          },
+          {
+            "query_id": 24,
+            "score": 83
+          },
+          {
+            "query_id": 25,
+            "score": 85
+          },
+          {
+            "query_id": 26,
+            "score": 77
+          },
+          {
+            "query_id": 27,
+            "score": 63
+          },
+          {
+            "query_id": 28,
+            "score": 83
+          },
+          {
+            "query_id": 29,
+            "score": 71
+          },
+          {
+            "query_id": 30,
+            "score": 78
+          }
+        ]
+      },
+      "SPIDER": {
+        "Database 1": [
+          {
+            "query_id": 1,
+            "score": 87
+          },
+          {
+            "query_id": 2,
+            "score": 86
+          },
+          {
+            "query_id": 3,
+            "score": 85
+          },
+          {
+            "query_id": 4,
+            "score": 90
+          },
+          {
+            "query_id": 5,
+            "score": 84
+          },
+          {
+            "query_id": 6,
+            "score": 84
+          },
+          {
+            "query_id": 7,
+            "score": 88
+          },
+          {
+            "query_id": 8,
+            "score": 90
+          },
+          {
+            "query_id": 9,
+            "score": 87
+          },
+          {
+            "query_id": 10,
+            "score": 83
+          },
+          {
+            "query_id": 11,
+            "score": 82
+          },
+          {
+            "query_id": 12,
+            "score": 81
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 76
+          },
+          {
+            "query_id": 15,
+            "score": 91
+          },
+          {
+            "query_id": 16,
+            "score": 69
+          },
+          {
+            "query_id": 17,
+            "score": 74
+          },
+          {
+            "query_id": 18,
+            "score": 72
+          },
+          {
+            "query_id": 19,
+            "score": 73
+          },
+          {
+            "query_id": 20,
+            "score": 73
+          },
+          {
+            "query_id": 21,
+            "score": 89
+          },
+          {
+            "query_id": 22,
+            "score": 83
+          },
+          {
+            "query_id": 23,
+            "score": 87
+          },
+          {
+            "query_id": 24,
+            "score": 84
+          },
+          {
+            "query_id": 25,
+            "score": 91
+          },
+          {
+            "query_id": 26,
+            "score": 80
+          },
+          {
+            "query_id": 27,
+            "score": 78
+          },
+          {
+            "query_id": 28,
+            "score": 69
+          },
+          {
+            "query_id": 29,
+            "score": 71
+          },
+          {
+            "query_id": 30,
+            "score": 70
+          }
+        ],
+        "Database 2": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 90
+          },
+          {
+            "query_id": 3,
+            "score": 85
+          },
+          {
+            "query_id": 4,
+            "score": 91
+          },
+          {
+            "query_id": 5,
+            "score": 84
+          },
+          {
+            "query_id": 6,
+            "score": 82
+          },
+          {
+            "query_id": 7,
+            "score": 82
+          },
+          {
+            "query_id": 8,
+            "score": 77
+          },
+          {
+            "query_id": 9,
+            "score": 78
+          },
+          {
+            "query_id": 10,
+            "score": 82
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 79
+          },
+          {
+            "query_id": 13,
+            "score": 88
+          },
+          {
+            "query_id": 14,
+            "score": 80
+          },
+          {
+            "query_id": 15,
+            "score": 76
+          },
+          {
+            "query_id": 16,
+            "score": 65
+          },
+          {
+            "query_id": 17,
+            "score": 70
+          },
+          {
+            "query_id": 18,
+            "score": 73
+          },
+          {
+            "query_id": 19,
+            "score": 75
+          },
+          {
+            "query_id": 20,
+            "score": 71
+          },
+          {
+            "query_id": 21,
+            "score": 85
+          },
+          {
+            "query_id": 22,
+            "score": 89
+          },
+          {
+            "query_id": 23,
+            "score": 88
+          },
+          {
+            "query_id": 24,
+            "score": 90
+          },
+          {
+            "query_id": 25,
+            "score": 89
+          },
+          {
+            "query_id": 26,
+            "score": 69
+          },
+          {
+            "query_id": 27,
+            "score": 75
+          },
+          {
+            "query_id": 28,
+            "score": 72
+          },
+          {
+            "query_id": 29,
+            "score": 72
+          },
+          {
+            "query_id": 30,
+            "score": 81
+          }
+        ],
+        "Database 3": [
+          {
+            "query_id": 1,
+            "score": 89
+          },
+          {
+            "query_id": 2,
+            "score": 88
+          },
+          {
+            "query_id": 3,
+            "score": 86
+          },
+          {
+            "query_id": 4,
+            "score": 81
+          },
+          {
+            "query_id": 5,
+            "score": 82
+          },
+          {
+            "query_id": 6,
+            "score": 87
+          },
+          {
+            "query_id": 7,
+            "score": 79
+          },
+          {
+            "query_id": 8,
+            "score": 82
+          },
+          {
+            "query_id": 9,
+            "score": 80
+          },
+          {
+            "query_id": 10,
+            "score": 79
+          },
+          {
+            "query_id": 11,
+            "score": 78
+          },
+          {
+            "query_id": 12,
+            "score": 84
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 77
+          },
+          {
+            "query_id": 15,
+            "score": 83
+          },
+          {
+            "query_id": 16,
+            "score": 73
+          },
+          {
+            "query_id": 17,
+            "score": 71
+          },
+          {
+            "query_id": 18,
+            "score": 69
+          },
+          {
+            "query_id": 19,
+            "score": 72
+          },
+          {
+            "query_id": 20,
+            "score": 70
+          },
+          {
+            "query_id": 21,
+            "score": 89
+          },
+          {
+            "query_id": 22,
+            "score": 84
+          },
+          {
+            "query_id": 23,
+            "score": 86
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 84
+          },
+          {
+            "query_id": 26,
+            "score": 72
+          },
+          {
+            "query_id": 27,
+            "score": 84
+          },
+          {
+            "query_id": 28,
+            "score": 82
+          },
+          {
+            "query_id": 29,
+            "score": 63
+          },
+          {
+            "query_id": 30,
+            "score": 68
+          }
+        ]
+      }
+    },
+    "Cogito 70b": {
+      "BIRD Training": {
+        "Human Resources": [
+          {
+            "query_id": 1,
+            "score": 80
+          },
+          {
+            "query_id": 2,
+            "score": 85
+          },
+          {
+            "query_id": 3,
+            "score": 84
+          },
+          {
+            "query_id": 4,
+            "score": 86
+          },
+          {
+            "query_id": 5,
+            "score": 81
+          },
+          {
+            "query_id": 6,
+            "score": 83
+          },
+          {
+            "query_id": 7,
+            "score": 79
+          },
+          {
+            "query_id": 8,
+            "score": 75
+          },
+          {
+            "query_id": 9,
+            "score": 75
+          },
+          {
+            "query_id": 10,
+            "score": 80
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 76
+          },
+          {
+            "query_id": 13,
+            "score": 77
+          },
+          {
+            "query_id": 14,
+            "score": 76
+          },
+          {
+            "query_id": 15,
+            "score": 77
+          },
+          {
+            "query_id": 16,
+            "score": 68
+          },
+          {
+            "query_id": 17,
+            "score": 58
+          },
+          {
+            "query_id": 18,
+            "score": 61
+          },
+          {
+            "query_id": 19,
+            "score": 62
+          },
+          {
+            "query_id": 20,
+            "score": 64
+          },
+          {
+            "query_id": 21,
+            "score": 75
+          },
+          {
+            "query_id": 22,
+            "score": 85
+          },
+          {
+            "query_id": 23,
+            "score": 81
+          },
+          {
+            "query_id": 24,
+            "score": 86
+          },
+          {
+            "query_id": 25,
+            "score": 82
+          },
+          {
+            "query_id": 26,
+            "score": 74
+          },
+          {
+            "query_id": 27,
+            "score": 62
+          },
+          {
+            "query_id": 28,
+            "score": 65
+          },
+          {
+            "query_id": 29,
+            "score": 68
+          },
+          {
+            "query_id": 30,
+            "score": 82
+          }
+        ],
+        "Football team": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 82
+          },
+          {
+            "query_id": 3,
+            "score": 82
+          },
+          {
+            "query_id": 4,
+            "score": 76
+          },
+          {
+            "query_id": 5,
+            "score": 86
+          },
+          {
+            "query_id": 6,
+            "score": 80
+          },
+          {
+            "query_id": 7,
+            "score": 84
+          },
+          {
+            "query_id": 8,
+            "score": 76
+          },
+          {
+            "query_id": 9,
+            "score": 81
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 78
+          },
+          {
+            "query_id": 12,
+            "score": 70
+          },
+          {
+            "query_id": 13,
+            "score": 72
+          },
+          {
+            "query_id": 14,
+            "score": 76
+          },
+          {
+            "query_id": 15,
+            "score": 78
+          },
+          {
+            "query_id": 16,
+            "score": 64
+          },
+          {
+            "query_id": 17,
+            "score": 63
+          },
+          {
+            "query_id": 18,
+            "score": 66
+          },
+          {
+            "query_id": 19,
+            "score": 60
+          },
+          {
+            "query_id": 20,
+            "score": 59
+          },
+          {
+            "query_id": 21,
+            "score": 79
+          },
+          {
+            "query_id": 22,
+            "score": 80
+          },
+          {
+            "query_id": 23,
+            "score": 86
+          },
+          {
+            "query_id": 24,
+            "score": 85
+          },
+          {
+            "query_id": 25,
+            "score": 81
+          },
+          {
+            "query_id": 26,
+            "score": 64
+          },
+          {
+            "query_id": 27,
+            "score": 75
+          },
+          {
+            "query_id": 28,
+            "score": 67
+          },
+          {
+            "query_id": 29,
+            "score": 66
+          },
+          {
+            "query_id": 30,
+            "score": 73
+          }
+        ],
+        "Chicago Crimes": [
+          {
+            "query_id": 1,
+            "score": 78
+          },
+          {
+            "query_id": 2,
+            "score": 77
+          },
+          {
+            "query_id": 3,
+            "score": 86
+          },
+          {
+            "query_id": 4,
+            "score": 85
+          },
+          {
+            "query_id": 5,
+            "score": 86
+          },
+          {
+            "query_id": 6,
+            "score": 80
+          },
+          {
+            "query_id": 7,
+            "score": 78
+          },
+          {
+            "query_id": 8,
+            "score": 80
+          },
+          {
+            "query_id": 9,
+            "score": 70
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 77
+          },
+          {
+            "query_id": 12,
+            "score": 73
+          },
+          {
+            "query_id": 13,
+            "score": 76
+          },
+          {
+            "query_id": 14,
+            "score": 74
+          },
+          {
+            "query_id": 15,
+            "score": 80
+          },
+          {
+            "query_id": 16,
+            "score": 68
+          },
+          {
+            "query_id": 17,
+            "score": 69
+          },
+          {
+            "query_id": 18,
+            "score": 61
+          },
+          {
+            "query_id": 19,
+            "score": 61
+          },
+          {
+            "query_id": 20,
+            "score": 65
+          },
+          {
+            "query_id": 21,
+            "score": 86
+          },
+          {
+            "query_id": 22,
+            "score": 80
+          },
+          {
+            "query_id": 23,
+            "score": 81
+          },
+          {
+            "query_id": 24,
+            "score": 84
+          },
+          {
+            "query_id": 25,
+            "score": 78
+          },
+          {
+            "query_id": 26,
+            "score": 65
+          },
+          {
+            "query_id": 27,
+            "score": 64
+          },
+          {
+            "query_id": 28,
+            "score": 69
+          },
+          {
+            "query_id": 29,
+            "score": 63
+          },
+          {
+            "query_id": 30,
+            "score": 67
+          }
+        ]
+      },
+      "BIRD Developer": {
+        "European Schools": [
+          {
+            "query_id": 1,
+            "score": 83
+          },
+          {
+            "query_id": 2,
+            "score": 88
+          },
+          {
+            "query_id": 3,
+            "score": 77
+          },
+          {
+            "query_id": 4,
+            "score": 87
+          },
+          {
+            "query_id": 5,
+            "score": 80
+          },
+          {
+            "query_id": 6,
+            "score": 77
+          },
+          {
+            "query_id": 7,
+            "score": 74
+          },
+          {
+            "query_id": 8,
+            "score": 77
+          },
+          {
+            "query_id": 9,
+            "score": 78
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 84
+          },
+          {
+            "query_id": 12,
+            "score": 77
+          },
+          {
+            "query_id": 13,
+            "score": 72
+          },
+          {
+            "query_id": 14,
+            "score": 82
+          },
+          {
+            "query_id": 15,
+            "score": 77
+          },
+          {
+            "query_id": 16,
+            "score": 62
+          },
+          {
+            "query_id": 17,
+            "score": 62
+          },
+          {
+            "query_id": 18,
+            "score": 60
+          },
+          {
+            "query_id": 19,
+            "score": 64
+          },
+          {
+            "query_id": 20,
+            "score": 63
+          },
+          {
+            "query_id": 21,
+            "score": 77
+          },
+          {
+            "query_id": 22,
+            "score": 86
+          },
+          {
+            "query_id": 23,
+            "score": 78
+          },
+          {
+            "query_id": 24,
+            "score": 88
+          },
+          {
+            "query_id": 25,
+            "score": 88
+          },
+          {
+            "query_id": 26,
+            "score": 67
+          },
+          {
+            "query_id": 27,
+            "score": 61
+          },
+          {
+            "query_id": 28,
+            "score": 72
+          },
+          {
+            "query_id": 29,
+            "score": 63
+          },
+          {
+            "query_id": 30,
+            "score": 67
+          }
+        ],
+        "Soccer teams": [
+          {
+            "query_id": 1,
+            "score": 82
+          },
+          {
+            "query_id": 2,
+            "score": 86
+          },
+          {
+            "query_id": 3,
+            "score": 75
+          },
+          {
+            "query_id": 4,
+            "score": 80
+          },
+          {
+            "query_id": 5,
+            "score": 83
+          },
+          {
+            "query_id": 6,
+            "score": 71
+          },
+          {
+            "query_id": 7,
+            "score": 72
+          },
+          {
+            "query_id": 8,
+            "score": 76
+          },
+          {
+            "query_id": 9,
+            "score": 76
+          },
+          {
+            "query_id": 10,
+            "score": 80
+          },
+          {
+            "query_id": 11,
+            "score": 76
+          },
+          {
+            "query_id": 12,
+            "score": 79
+          },
+          {
+            "query_id": 13,
+            "score": 82
+          },
+          {
+            "query_id": 14,
+            "score": 74
+          },
+          {
+            "query_id": 15,
+            "score": 76
+          },
+          {
+            "query_id": 16,
+            "score": 60
+          },
+          {
+            "query_id": 17,
+            "score": 60
+          },
+          {
+            "query_id": 18,
+            "score": 72
+          },
+          {
+            "query_id": 19,
+            "score": 67
+          },
+          {
+            "query_id": 20,
+            "score": 68
+          },
+          {
+            "query_id": 21,
+            "score": 75
+          },
+          {
+            "query_id": 22,
+            "score": 81
+          },
+          {
+            "query_id": 23,
+            "score": 81
+          },
+          {
+            "query_id": 24,
+            "score": 81
+          },
+          {
+            "query_id": 25,
+            "score": 82
+          },
+          {
+            "query_id": 26,
+            "score": 66
+          },
+          {
+            "query_id": 27,
+            "score": 71
+          },
+          {
+            "query_id": 28,
+            "score": 73
+          },
+          {
+            "query_id": 29,
+            "score": 59
+          },
+          {
+            "query_id": 30,
+            "score": 68
+          }
+        ],
+        "Altro database": [
+          {
+            "query_id": 1,
+            "score": 83
+          },
+          {
+            "query_id": 2,
+            "score": 82
+          },
+          {
+            "query_id": 3,
+            "score": 87
+          },
+          {
+            "query_id": 4,
+            "score": 83
+          },
+          {
+            "query_id": 5,
+            "score": 76
+          },
+          {
+            "query_id": 6,
+            "score": 80
+          },
+          {
+            "query_id": 7,
+            "score": 79
+          },
+          {
+            "query_id": 8,
+            "score": 81
+          },
+          {
+            "query_id": 9,
+            "score": 76
+          },
+          {
+            "query_id": 10,
+            "score": 78
+          },
+          {
+            "query_id": 11,
+            "score": 80
+          },
+          {
+            "query_id": 12,
+            "score": 81
+          },
+          {
+            "query_id": 13,
+            "score": 78
+          },
+          {
+            "query_id": 14,
+            "score": 72
+          },
+          {
+            "query_id": 15,
+            "score": 69
+          },
+          {
+            "query_id": 16,
+            "score": 63
+          },
+          {
+            "query_id": 17,
+            "score": 62
+          },
+          {
+            "query_id": 18,
+            "score": 63
+          },
+          {
+            "query_id": 19,
+            "score": 55
+          },
+          {
+            "query_id": 20,
+            "score": 64
+          },
+          {
+            "query_id": 21,
+            "score": 80
+          },
+          {
+            "query_id": 22,
+            "score": 82
+          },
+          {
+            "query_id": 23,
+            "score": 76
+          },
+          {
+            "query_id": 24,
+            "score": 89
+          },
+          {
+            "query_id": 25,
+            "score": 88
+          },
+          {
+            "query_id": 26,
+            "score": 73
+          },
+          {
+            "query_id": 27,
+            "score": 68
+          },
+          {
+            "query_id": 28,
+            "score": 61
+          },
+          {
+            "query_id": 29,
+            "score": 65
+          },
+          {
+            "query_id": 30,
+            "score": 68
+          }
+        ]
+      },
+      "SPIDER": {
+        "Database 1": [
+          {
+            "query_id": 1,
+            "score": 85
+          },
+          {
+            "query_id": 2,
+            "score": 81
+          },
+          {
+            "query_id": 3,
+            "score": 78
+          },
+          {
+            "query_id": 4,
+            "score": 82
+          },
+          {
+            "query_id": 5,
+            "score": 82
+          },
+          {
+            "query_id": 6,
+            "score": 77
+          },
+          {
+            "query_id": 7,
+            "score": 72
+          },
+          {
+            "query_id": 8,
+            "score": 81
+          },
+          {
+            "query_id": 9,
+            "score": 74
+          },
+          {
+            "query_id": 10,
+            "score": 80
+          },
+          {
+            "query_id": 11,
+            "score": 78
+          },
+          {
+            "query_id": 12,
+            "score": 76
+          },
+          {
+            "query_id": 13,
+            "score": 78
+          },
+          {
+            "query_id": 14,
+            "score": 81
+          },
+          {
+            "query_id": 15,
+            "score": 74
+          },
+          {
+            "query_id": 16,
+            "score": 61
+          },
+          {
+            "query_id": 17,
+            "score": 59
+          },
+          {
+            "query_id": 18,
+            "score": 67
+          },
+          {
+            "query_id": 19,
+            "score": 69
+          },
+          {
+            "query_id": 20,
+            "score": 62
+          },
+          {
+            "query_id": 21,
+            "score": 82
+          },
+          {
+            "query_id": 22,
+            "score": 82
+          },
+          {
+            "query_id": 23,
+            "score": 75
+          },
+          {
+            "query_id": 24,
+            "score": 77
+          },
+          {
+            "query_id": 25,
+            "score": 82
+          },
+          {
+            "query_id": 26,
+            "score": 57
+          },
+          {
+            "query_id": 27,
+            "score": 65
+          },
+          {
+            "query_id": 28,
+            "score": 68
+          },
+          {
+            "query_id": 29,
+            "score": 73
+          },
+          {
+            "query_id": 30,
+            "score": 64
+          }
+        ],
+        "Database 2": [
+          {
+            "query_id": 1,
+            "score": 79
+          },
+          {
+            "query_id": 2,
+            "score": 80
+          },
+          {
+            "query_id": 3,
+            "score": 79
+          },
+          {
+            "query_id": 4,
+            "score": 86
+          },
+          {
+            "query_id": 5,
+            "score": 81
+          },
+          {
+            "query_id": 6,
+            "score": 73
+          },
+          {
+            "query_id": 7,
+            "score": 75
+          },
+          {
+            "query_id": 8,
+            "score": 83
+          },
+          {
+            "query_id": 9,
+            "score": 82
+          },
+          {
+            "query_id": 10,
+            "score": 75
+          },
+          {
+            "query_id": 11,
+            "score": 76
+          },
+          {
+            "query_id": 12,
+            "score": 70
+          },
+          {
+            "query_id": 13,
+            "score": 71
+          },
+          {
+            "query_id": 14,
+            "score": 74
+          },
+          {
+            "query_id": 15,
+            "score": 74
+          },
+          {
+            "query_id": 16,
+            "score": 63
+          },
+          {
+            "query_id": 17,
+            "score": 55
+          },
+          {
+            "query_id": 18,
+            "score": 64
+          },
+          {
+            "query_id": 19,
+            "score": 70
+          },
+          {
+            "query_id": 20,
+            "score": 59
+          },
+          {
+            "query_id": 21,
+            "score": 79
+          },
+          {
+            "query_id": 22,
+            "score": 78
+          },
+          {
+            "query_id": 23,
+            "score": 81
+          },
+          {
+            "query_id": 24,
+            "score": 75
+          },
+          {
+            "query_id": 25,
+            "score": 86
+          },
+          {
+            "query_id": 26,
+            "score": 59
+          },
+          {
+            "query_id": 27,
+            "score": 66
+          },
+          {
+            "query_id": 28,
+            "score": 74
+          },
+          {
+            "query_id": 29,
+            "score": 55
+          },
+          {
+            "query_id": 30,
+            "score": 75
+          }
+        ],
+        "Database 3": [
+          {
+            "query_id": 1,
+            "score": 82
+          },
+          {
+            "query_id": 2,
+            "score": 82
+          },
+          {
+            "query_id": 3,
+            "score": 79
+          },
+          {
+            "query_id": 4,
+            "score": 85
+          },
+          {
+            "query_id": 5,
+            "score": 82
+          },
+          {
+            "query_id": 6,
+            "score": 74
+          },
+          {
+            "query_id": 7,
+            "score": 79
+          },
+          {
+            "query_id": 8,
+            "score": 82
+          },
+          {
+            "query_id": 9,
+            "score": 72
+          },
+          {
+            "query_id": 10,
+            "score": 74
+          },
+          {
+            "query_id": 11,
+            "score": 78
+          },
+          {
+            "query_id": 12,
+            "score": 75
+          },
+          {
+            "query_id": 13,
+            "score": 79
+          },
+          {
+            "query_id": 14,
+            "score": 75
+          },
+          {
+            "query_id": 15,
+            "score": 74
+          },
+          {
+            "query_id": 16,
+            "score": 62
+          },
+          {
+            "query_id": 17,
+            "score": 58
+          },
+          {
+            "query_id": 18,
+            "score": 64
+          },
+          {
+            "query_id": 19,
+            "score": 63
+          },
+          {
+            "query_id": 20,
+            "score": 67
+          },
+          {
+            "query_id": 21,
+            "score": 84
+          },
+          {
+            "query_id": 22,
+            "score": 89
+          },
+          {
+            "query_id": 23,
+            "score": 84
+          },
+          {
+            "query_id": 24,
+            "score": 84
+          },
+          {
+            "query_id": 25,
+            "score": 80
+          },
+          {
+            "query_id": 26,
+            "score": 67
+          },
+          {
+            "query_id": 27,
+            "score": 66
+          },
+          {
+            "query_id": 28,
+            "score": 70
+          },
+          {
+            "query_id": 29,
+            "score": 80
+          },
+          {
+            "query_id": 30,
+            "score": 77
+          }
+        ]
+      }
+    },
+    "Llama 70b": {
+      "BIRD Training": {
+        "Human Resources": [
+          {
+            "query_id": 1,
+            "score": 74
+          },
+          {
+            "query_id": 2,
+            "score": 75
+          },
+          {
+            "query_id": 3,
+            "score": 75
+          },
+          {
+            "query_id": 4,
+            "score": 70
+          },
+          {
+            "query_id": 5,
+            "score": 69
+          },
+          {
+            "query_id": 6,
+            "score": 78
+          },
+          {
+            "query_id": 7,
+            "score": 77
+          },
+          {
+            "query_id": 8,
+            "score": 70
+          },
+          {
+            "query_id": 9,
+            "score": 74
+          },
+          {
+            "query_id": 10,
+            "score": 74
+          },
+          {
+            "query_id": 11,
+            "score": 72
+          },
+          {
+            "query_id": 12,
+            "score": 74
+          },
+          {
+            "query_id": 13,
+            "score": 76
+          },
+          {
+            "query_id": 14,
+            "score": 70
+          },
+          {
+            "query_id": 15,
+            "score": 71
+          },
+          {
+            "query_id": 16,
+            "score": 54
+          },
+          {
+            "query_id": 17,
+            "score": 60
+          },
+          {
+            "query_id": 18,
+            "score": 61
+          },
+          {
+            "query_id": 19,
+            "score": 54
+          },
+          {
+            "query_id": 20,
+            "score": 65
+          },
+          {
+            "query_id": 21,
+            "score": 78
+          },
+          {
+            "query_id": 22,
+            "score": 88
+          },
+          {
+            "query_id": 23,
+            "score": 80
+          },
+          {
+            "query_id": 24,
+            "score": 82
+          },
+          {
+            "query_id": 25,
+            "score": 80
+          },
+          {
+            "query_id": 26,
+            "score": 64
+          },
+          {
+            "query_id": 27,
+            "score": 69
+          },
+          {
+            "query_id": 28,
+            "score": 76
+          },
+          {
+            "query_id": 29,
+            "score": 61
+          },
+          {
+            "query_id": 30,
+            "score": 64
+          }
+        ],
+        "Football team": [
+          {
+            "query_id": 1,
+            "score": 80
+          },
+          {
+            "query_id": 2,
+            "score": 76
+          },
+          {
+            "query_id": 3,
+            "score": 83
+          },
+          {
+            "query_id": 4,
+            "score": 83
+          },
+          {
+            "query_id": 5,
+            "score": 75
+          },
+          {
+            "query_id": 6,
+            "score": 74
+          },
+          {
+            "query_id": 7,
+            "score": 74
+          },
+          {
+            "query_id": 8,
+            "score": 71
+          },
+          {
+            "query_id": 9,
+            "score": 73
+          },
+          {
+            "query_id": 10,
+            "score": 73
+          },
+          {
+            "query_id": 11,
+            "score": 74
+          },
+          {
+            "query_id": 12,
+            "score": 74
+          },
+          {
+            "query_id": 13,
+            "score": 75
+          },
+          {
+            "query_id": 14,
+            "score": 76
+          },
+          {
+            "query_id": 15,
+            "score": 73
+          },
+          {
+            "query_id": 16,
+            "score": 63
+          },
+          {
+            "query_id": 17,
+            "score": 54
+          },
+          {
+            "query_id": 18,
+            "score": 64
+          },
+          {
+            "query_id": 19,
+            "score": 63
+          },
+          {
+            "query_id": 20,
+            "score": 49
+          },
+          {
+            "query_id": 21,
+            "score": 87
+          },
+          {
+            "query_id": 22,
+            "score": 75
+          },
+          {
+            "query_id": 23,
+            "score": 75
+          },
+          {
+            "query_id": 24,
+            "score": 77
+          },
+          {
+            "query_id": 25,
+            "score": 81
+          },
+          {
+            "query_id": 26,
+            "score": 60
+          },
+          {
+            "query_id": 27,
+            "score": 69
+          },
+          {
+            "query_id": 28,
+            "score": 60
+          },
+          {
+            "query_id": 29,
+            "score": 69
+          },
+          {
+            "query_id": 30,
+            "score": 62
+          }
+        ],
+        "Chicago Crimes": [
+          {
+            "query_id": 1,
+            "score": 75
+          },
+          {
+            "query_id": 2,
+            "score": 80
+          },
+          {
+            "query_id": 3,
+            "score": 73
+          },
+          {
+            "query_id": 4,
+            "score": 87
+          },
+          {
+            "query_id": 5,
+            "score": 79
+          },
+          {
+            "query_id": 6,
+            "score": 74
+          },
+          {
+            "query_id": 7,
+            "score": 76
+          },
+          {
+            "query_id": 8,
+            "score": 75
+          },
+          {
+            "query_id": 9,
+            "score": 69
+          },
+          {
+            "query_id": 10,
+            "score": 71
+          },
+          {
+            "query_id": 11,
+            "score": 75
+          },
+          {
+            "query_id": 12,
+            "score": 78
+          },
+          {
+            "query_id": 13,
+            "score": 76
+          },
+          {
+            "query_id": 14,
+            "score": 75
+          },
+          {
+            "query_id": 15,
+            "score": 75
+          },
+          {
+            "query_id": 16,
+            "score": 59
+          },
+          {
+            "query_id": 17,
+            "score": 70
+          },
+          {
+            "query_id": 18,
+            "score": 61
+          },
+          {
+            "query_id": 19,
+            "score": 58
+          },
+          {
+            "query_id": 20,
+            "score": 54
+          },
+          {
+            "query_id": 21,
+            "score": 83
+          },
+          {
+            "query_id": 22,
+            "score": 80
+          },
+          {
+            "query_id": 23,
+            "score": 71
+          },
+          {
+            "query_id": 24,
+            "score": 72
+          },
+          {
+            "query_id": 25,
+            "score": 82
+          },
+          {
+            "query_id": 26,
+            "score": 57
+          },
+          {
+            "query_id": 27,
+            "score": 61
+          },
+          {
+            "query_id": 28,
+            "score": 65
+          },
+          {
+            "query_id": 29,
+            "score": 65
+          },
+          {
+            "query_id": 30,
+            "score": 60
+          }
+        ]
+      },
+      "BIRD Developer": {
+        "European Schools": [
+          {
+            "query_id": 1,
+            "score": 74
+          },
+          {
+            "query_id": 2,
+            "score": 75
+          },
+          {
+            "query_id": 3,
+            "score": 78
+          },
+          {
+            "query_id": 4,
+            "score": 74
+          },
+          {
+            "query_id": 5,
+            "score": 71
+          },
+          {
+            "query_id": 6,
+            "score": 76
+          },
+          {
+            "query_id": 7,
+            "score": 77
+          },
+          {
+            "query_id": 8,
+            "score": 68
+          },
+          {
+            "query_id": 9,
+            "score": 69
+          },
+          {
+            "query_id": 10,
+            "score": 72
+          },
+          {
+            "query_id": 11,
+            "score": 74
+          },
+          {
+            "query_id": 12,
+            "score": 69
+          },
+          {
+            "query_id": 13,
+            "score": 70
+          },
+          {
+            "query_id": 14,
+            "score": 71
+          },
+          {
+            "query_id": 15,
+            "score": 71
+          },
+          {
+            "query_id": 16,
+            "score": 54
+          },
+          {
+            "query_id": 17,
+            "score": 59
+          },
+          {
+            "query_id": 18,
+            "score": 61
+          },
+          {
+            "query_id": 19,
+            "score": 57
+          },
+          {
+            "query_id": 20,
+            "score": 57
+          },
+          {
+            "query_id": 21,
+            "score": 85
+          },
+          {
+            "query_id": 22,
+            "score": 79
+          },
+          {
+            "query_id": 23,
+            "score": 84
+          },
+          {
+            "query_id": 24,
+            "score": 77
+          },
+          {
+            "query_id": 25,
+            "score": 83
+          },
+          {
+            "query_id": 26,
+            "score": 66
+          },
+          {
+            "query_id": 27,
+            "score": 73
+          },
+          {
+            "query_id": 28,
+            "score": 66
+          },
+          {
+            "query_id": 29,
+            "score": 68
+          },
+          {
+            "query_id": 30,
+            "score": 66
+          }
+        ],
+        "Soccer teams": [
+          {
+            "query_id": 1,
+            "score": 82
+          },
+          {
+            "query_id": 2,
+            "score": 83
+          },
+          {
+            "query_id": 3,
+            "score": 84
+          },
+          {
+            "query_id": 4,
+            "score": 86
+          },
+          {
+            "query_id": 5,
+            "score": 76
+          },
+          {
+            "query_id": 6,
+            "score": 69
+          },
+          {
+            "query_id": 7,
+            "score": 74
+          },
+          {
+            "query_id": 8,
+            "score": 77
+          },
+          {
+            "query_id": 9,
+            "score": 77
+          },
+          {
+            "query_id": 10,
+            "score": 70
+          },
+          {
+            "query_id": 11,
+            "score": 71
+          },
+          {
+            "query_id": 12,
+            "score": 72
+          },
+          {
+            "query_id": 13,
+            "score": 73
+          },
+          {
+            "query_id": 14,
+            "score": 75
+          },
+          {
+            "query_id": 15,
+            "score": 69
+          },
+          {
+            "query_id": 16,
+            "score": 55
+          },
+          {
+            "query_id": 17,
+            "score": 55
+          },
+          {
+            "query_id": 18,
+            "score": 56
+          },
+          {
+            "query_id": 19,
+            "score": 68
+          },
+          {
+            "query_id": 20,
+            "score": 57
+          },
+          {
+            "query_id": 21,
+            "score": 82
+          },
+          {
+            "query_id": 22,
+            "score": 84
+          },
+          {
+            "query_id": 23,
+            "score": 70
+          },
+          {
+            "query_id": 24,
+            "score": 77
+          },
+          {
+            "query_id": 25,
+            "score": 80
+          },
+          {
+            "query_id": 26,
+            "score": 67
+          },
+          {
+            "query_id": 27,
+            "score": 61
+          },
+          {
+            "query_id": 28,
+            "score": 57
+          },
+          {
+            "query_id": 29,
+            "score": 63
+          },
+          {
+            "query_id": 30,
+            "score": 65
+          }
+        ],
+        "Altro database": [
+          {
+            "query_id": 1,
+            "score": 84
+          },
+          {
+            "query_id": 2,
+            "score": 77
+          },
+          {
+            "query_id": 3,
+            "score": 77
+          },
+          {
+            "query_id": 4,
+            "score": 78
+          },
+          {
+            "query_id": 5,
+            "score": 74
+          },
+          {
+            "query_id": 6,
+            "score": 76
+          },
+          {
+            "query_id": 7,
+            "score": 72
+          },
+          {
+            "query_id": 8,
+            "score": 72
+          },
+          {
+            "query_id": 9,
+            "score": 73
+          },
+          {
+            "query_id": 10,
+            "score": 77
+          },
+          {
+            "query_id": 11,
+            "score": 76
+          },
+          {
+            "query_id": 12,
+            "score": 72
+          },
+          {
+            "query_id": 13,
+            "score": 68
+          },
+          {
+            "query_id": 14,
+            "score": 69
+          },
+          {
+            "query_id": 15,
+            "score": 68
+          },
+          {
+            "query_id": 16,
+            "score": 56
+          },
+          {
+            "query_id": 17,
+            "score": 67
+          },
+          {
+            "query_id": 18,
+            "score": 56
+          },
+          {
+            "query_id": 19,
+            "score": 56
+          },
+          {
+            "query_id": 20,
+            "score": 69
+          },
+          {
+            "query_id": 21,
+            "score": 79
+          },
+          {
+            "query_id": 22,
+            "score": 77
+          },
+          {
+            "query_id": 23,
+            "score": 78
+          },
+          {
+            "query_id": 24,
+            "score": 77
+          },
+          {
+            "query_id": 25,
+            "score": 78
+          },
+          {
+            "query_id": 26,
+            "score": 65
+          },
+          {
+            "query_id": 27,
+            "score": 57
+          },
+          {
+            "query_id": 28,
+            "score": 67
+          },
+          {
+            "query_id": 29,
+            "score": 66
+          },
+          {
+            "query_id": 30,
+            "score": 70
+          }
+        ]
+      },
+      "SPIDER": {
+        "Database 1": [
+          {
+            "query_id": 1,
+            "score": 79
+          },
+          {
+            "query_id": 2,
+            "score": 81
+          },
+          {
+            "query_id": 3,
+            "score": 73
+          },
+          {
+            "query_id": 4,
+            "score": 85
+          },
+          {
+            "query_id": 5,
+            "score": 81
+          },
+          {
+            "query_id": 6,
+            "score": 71
+          },
+          {
+            "query_id": 7,
+            "score": 75
+          },
+          {
+            "query_id": 8,
+            "score": 77
+          },
+          {
+            "query_id": 9,
+            "score": 68
+          },
+          {
+            "query_id": 10,
+            "score": 71
+          },
+          {
+            "query_id": 11,
+            "score": 73
+          },
+          {
+            "query_id": 12,
+            "score": 77
+          },
+          {
+            "query_id": 13,
+            "score": 75
+          },
+          {
+            "query_id": 14,
+            "score": 72
+          },
+          {
+            "query_id": 15,
+            "score": 70
+          },
+          {
+            "query_id": 16,
+            "score": 61
+          },
+          {
+            "query_id": 17,
+            "score": 67
+          },
+          {
+            "query_id": 18,
+            "score": 70
+          },
+          {
+            "query_id": 19,
+            "score": 55
+          },
+          {
+            "query_id": 20,
+            "score": 69
+          },
+          {
+            "query_id": 21,
+            "score": 82
+          },
+          {
+            "query_id": 22,
+            "score": 75
+          },
+          {
+            "query_id": 23,
+            "score": 80
+          },
+          {
+            "query_id": 24,
+            "score": 73
+          },
+          {
+            "query_id": 25,
+            "score": 75
+          },
+          {
+            "query_id": 26,
+            "score": 56
+          },
+          {
+            "query_id": 27,
+            "score": 69
+          },
+          {
+            "query_id": 28,
+            "score": 62
+          },
+          {
+            "query_id": 29,
+            "score": 67
+          },
+          {
+            "query_id": 30,
+            "score": 73
+          }
+        ],
+        "Database 2": [
+          {
+            "query_id": 1,
+            "score": 72
+          },
+          {
+            "query_id": 2,
+            "score": 75
+          },
+          {
+            "query_id": 3,
+            "score": 81
+          },
+          {
+            "query_id": 4,
+            "score": 74
+          },
+          {
+            "query_id": 5,
+            "score": 86
+          },
+          {
+            "query_id": 6,
+            "score": 70
+          },
+          {
+            "query_id": 7,
+            "score": 68
+          },
+          {
+            "query_id": 8,
+            "score": 76
+          },
+          {
+            "query_id": 9,
+            "score": 74
+          },
+          {
+            "query_id": 10,
+            "score": 70
+          },
+          {
+            "query_id": 11,
+            "score": 76
+          },
+          {
+            "query_id": 12,
+            "score": 75
+          },
+          {
+            "query_id": 13,
+            "score": 78
+          },
+          {
+            "query_id": 14,
+            "score": 69
+          },
+          {
+            "query_id": 15,
+            "score": 69
+          },
+          {
+            "query_id": 16,
+            "score": 57
+          },
+          {
+            "query_id": 17,
+            "score": 59
+          },
+          {
+            "query_id": 18,
+            "score": 63
+          },
+          {
+            "query_id": 19,
+            "score": 53
+          },
+          {
+            "query_id": 20,
+            "score": 57
+          },
+          {
+            "query_id": 21,
+            "score": 77
+          },
+          {
+            "query_id": 22,
+            "score": 81
+          },
+          {
+            "query_id": 23,
+            "score": 77
+          },
+          {
+            "query_id": 24,
+            "score": 76
+          },
+          {
+            "query_id": 25,
+            "score": 85
+          },
+          {
+            "query_id": 26,
+            "score": 72
+          },
+          {
+            "query_id": 27,
+            "score": 78
+          },
+          {
+            "query_id": 28,
+            "score": 72
+          },
+          {
+            "query_id": 29,
+            "score": 64
+          },
+          {
+            "query_id": 30,
+            "score": 62
+          }
+        ],
+        "Database 3": [
+          {
+            "query_id": 1,
+            "score": 81
+          },
+          {
+            "query_id": 2,
+            "score": 82
+          },
+          {
+            "query_id": 3,
+            "score": 79
+          },
+          {
+            "query_id": 4,
+            "score": 79
+          },
+          {
+            "query_id": 5,
+            "score": 85
+          },
+          {
+            "query_id": 6,
+            "score": 75
+          },
+          {
+            "query_id": 7,
+            "score": 75
+          },
+          {
+            "query_id": 8,
+            "score": 75
+          },
+          {
+            "query_id": 9,
+            "score": 73
+          },
+          {
+            "query_id": 10,
+            "score": 70
+          },
+          {
+            "query_id": 11,
+            "score": 71
+          },
+          {
+            "query_id": 12,
+            "score": 74
+          },
+          {
+            "query_id": 13,
+            "score": 76
+          },
+          {
+            "query_id": 14,
+            "score": 72
+          },
+          {
+            "query_id": 15,
+            "score": 69
+          },
+          {
+            "query_id": 16,
+            "score": 66
+          },
+          {
+            "query_id": 17,
+            "score": 68
+          },
+          {
+            "query_id": 18,
+            "score": 53
+          },
+          {
+            "query_id": 19,
+            "score": 63
+          },
+          {
+            "query_id": 20,
+            "score": 69
+          },
+          {
+            "query_id": 21,
+            "score": 82
+          },
+          {
+            "query_id": 22,
+            "score": 78
+          },
+          {
+            "query_id": 23,
+            "score": 79
+          },
+          {
+            "query_id": 24,
+            "score": 82
+          },
+          {
+            "query_id": 25,
+            "score": 75
+          },
+          {
+            "query_id": 26,
+            "score": 71
+          },
+          {
+            "query_id": 27,
+            "score": 68
+          },
+          {
+            "query_id": 28,
+            "score": 67
+          },
+          {
+            "query_id": 29,
+            "score": 65
+          },
+          {
+            "query_id": 30,
+            "score": 60
+          }
+        ]
+      }
+    }
+  }
+}
