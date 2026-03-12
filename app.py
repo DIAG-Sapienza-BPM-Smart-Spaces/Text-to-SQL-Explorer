@@ -722,15 +722,18 @@ with columns[0]:
                 for i, model in enumerate(models):
                     if st.session_state.get(f"judge_{i}", False):
                         active_judge_models.append(model)
+
+            # Calculate ensemble string - join selected models with " + "
+            ensemble_string = " + ".join(active_ensemble_models) if active_ensemble_models else None
             
             # Collect all active results
             active_results_df = collect_active_results(
                 active_queries,
                 selected_models,
                 selected_metrics,
-                tdex_models=active_tdex_models if active_tdex_models else None,
-                ensemble_models=active_ensemble_models if active_ensemble_models else None,
-                judge_models=active_judge_models if active_judge_models else None
+                tdex_agents=active_tdex_models if active_tdex_models else None,
+                ensemble_agents=[ensemble_string] if ensemble_string else None,
+                judge_agents=active_judge_models if active_judge_models else None
             )
             
             # Store active results in session state
@@ -785,3 +788,98 @@ with columns[0]:
         
 with columns[1]:
     st.header("Barplot")
+
+    # Display active results in a bar plot grouped by metric and colored by model
+    if 'active_results_df' in st.session_state and not st.session_state['active_results_df'].empty:
+        import plotly.graph_objects as go
+        
+        results_df = st.session_state['active_results_df'].copy()
+        
+        # Create metric labels that include agent info for complex metrics
+        def create_metric_label(row):
+            """Create a display label for the metric, including agent info if present"""
+            metric_names = {
+                "exec_acc": "Execution Accuracy",
+                "exact_match": "Exact Match",
+                "tdex": "TDEX",
+                "llms_ensemble": "LLMs Ensemble",
+                "llm_judge": "LLM as Judge"
+            }
+            metric_display = metric_names.get(row['metric'], row['metric'])
+            
+            # Add agent info for complex metrics
+            if 'agent' in row and pd.notna(row['agent']):
+                return f"{metric_display} ({row['agent']})"
+            return metric_display
+        
+        results_df['metric_label'] = results_df.apply(create_metric_label, axis=1)
+        
+        # Calculate average value for each model-metric combination
+        grouped_data = results_df.groupby(['metric_label', 'model'])['value'].mean().reset_index()
+        
+        # Create the bar chart
+        fig = go.Figure()
+        
+        # Get unique metrics in order (preserve ordering)
+        unique_metrics = grouped_data['metric_label'].unique()
+        
+        # Add a trace for each model
+        for model in selected_models:
+            model_data = grouped_data[grouped_data['model'] == model]
+            
+            # Ensure all metrics are represented (fill missing with None)
+            plot_values = []
+            for metric in unique_metrics:
+                metric_row = model_data[model_data['metric_label'] == metric]
+                if len(metric_row) > 0:
+                    plot_values.append(metric_row['value'].values[0])
+                else:
+                    plot_values.append(None)
+            
+            fig.add_trace(go.Bar(
+                name=model,
+                x=unique_metrics,
+                y=plot_values,
+                marker_color=model_colors.get(model, '#888888'),
+                text=[f"{v:.1f}%" if v is not None else "" for v in plot_values],
+                textposition='outside',
+                textfont=dict(size=10)
+            ))
+        
+        # Update layout
+        fig.update_layout(
+            barmode='group',
+            xaxis_title="Metrics",
+            yaxis_title="Accuracy (%)",
+            yaxis=dict(
+                range=[0, 100],
+                dtick=10
+            ),
+            legend=dict(
+                title="Models",
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1.02
+            ),
+            height=600,
+            hovermode='x unified',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+        )
+        
+        # Add grid lines
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)')
+        fig.update_xaxes(showgrid=False)
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Display summary statistics
+        with st.expander("📊 Summary Statistics"):
+            summary_pivot = grouped_data.pivot(index='metric_label', columns='model', values='value').round(2)
+            st.dataframe(summary_pivot, use_container_width=True)
+    else:
+        st.info("👈 Select models, metrics, datasets, and databases from the left panel to see the visualization.")
+        st.caption("The bar chart will display model performance grouped by metrics with values ranging from 0% to 100%.")

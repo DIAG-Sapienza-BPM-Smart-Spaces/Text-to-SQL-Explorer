@@ -42,51 +42,81 @@ def generate_metric_value(model, metric_name, query_complexity):
 
 
 def generate_tdex_metric(query_complexity):
-    """Generate TDEX metric values for all models"""
-    return {model: generate_metric_value(model, "TDEX", query_complexity) 
-            for model in models}
+    """Generate TDEX metric values for all models with high variability"""
+    results = {}
+    for model in models:
+        base_value = generate_metric_value(model, "TDEX", query_complexity)
+        # Add significant random noise for agent-based metric (±15 points)
+        noise = random.uniform(-15, 15)
+        # Occasionally add larger outliers (10% chance)
+        if random.random() < 0.1:
+            noise += random.uniform(-10, 10)
+        value = base_value + noise
+        results[model] = round(min(100, max(0, value)), 2)
+    return results
 
 
 def generate_llms_judge_metric(query_complexity):
-    """Generate LLMs as a Judge metric values for all models"""
-    return {model: generate_metric_value(model, "LLMs as a Judge", query_complexity) 
-            for model in models}
+    """Generate LLMs as a Judge metric values for all models with high variability"""
+    results = {}
+    for model in models:
+        base_value = generate_metric_value(model, "LLMs as a Judge", query_complexity)
+        # Add significant random noise for subjective judgment (±20 points)
+        noise = random.uniform(-20, 20)
+        # Add occasional strong disagreements (15% chance)
+        if random.random() < 0.15:
+            noise += random.uniform(-15, 15)
+        value = base_value + noise
+        results[model] = round(min(100, max(0, value)), 2)
+    return results
 
 
 def generate_ensemble_metric(query_complexity):
-    """Generate Ensemble metric values for all model combinations"""
+    """Generate Ensemble metric values for all model combinations with high variability"""
     ensemble_values = {}
     
     # Single models
     for model in models:
-        ensemble_values[model] = generate_metric_value(model, "Ensemble", query_complexity)
+        base_value = generate_metric_value(model, "Ensemble", query_complexity)
+        # Add random noise (±12 points)
+        noise = random.uniform(-12, 12)
+        ensemble_values[model] = round(min(100, max(0, base_value + noise)), 2)
     
     # Pairs of models
     for pair in combinations(models, 2):
         key = " + ".join(pair)
         # Ensemble typically performs better than individual models
         avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in pair]) / (2 * len(pair))
-        complexity_penalty = query_complexity * 2.5
-        value = random.uniform(max(0, avg_perf - complexity_penalty), 
-                               min(100, avg_perf + 5 - complexity_penalty))
-        ensemble_values[key] = round(value, 2)
+        complexity_penalty = query_complexity * random.uniform(2.0, 3.0)  # Variable penalty
+        # Wider range and additional noise
+        base_range = random.uniform(max(0, avg_perf - complexity_penalty - 5), 
+                                   min(100, avg_perf + 8 - complexity_penalty))
+        noise = random.uniform(-10, 10)
+        value = base_range + noise
+        ensemble_values[key] = round(min(100, max(0, value)), 2)
     
     # Triplets of models
     for triplet in combinations(models, 3):
         key = " + ".join(triplet)
         avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in triplet]) / (2 * len(triplet))
-        complexity_penalty = query_complexity * 2
-        value = random.uniform(max(0, avg_perf - complexity_penalty), 
-                               min(100, avg_perf + 7 - complexity_penalty))
-        ensemble_values[key] = round(value, 2)
+        complexity_penalty = query_complexity * random.uniform(1.5, 2.5)  # Variable penalty
+        # Wider range and additional noise
+        base_range = random.uniform(max(0, avg_perf - complexity_penalty - 5), 
+                                   min(100, avg_perf + 10 - complexity_penalty))
+        noise = random.uniform(-12, 12)
+        value = base_range + noise
+        ensemble_values[key] = round(min(100, max(0, value)), 2)
     
     # All models
     key = " + ".join(models)
     avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in models]) / (2 * len(models))
-    complexity_penalty = query_complexity * 1.5
-    value = random.uniform(max(0, avg_perf - complexity_penalty), 
-                           min(100, avg_perf + 10 - complexity_penalty))
-    ensemble_values[key] = round(value, 2)
+    complexity_penalty = query_complexity * random.uniform(1.0, 2.0)  # Variable penalty
+    # Wider range and additional noise
+    base_range = random.uniform(max(0, avg_perf - complexity_penalty - 5), 
+                               min(100, avg_perf + 15 - complexity_penalty))
+    noise = random.uniform(-15, 15)
+    value = base_range + noise
+    ensemble_values[key] = round(min(100, max(0, value)), 2)
     
     return ensemble_values
 
