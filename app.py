@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import pandas as pd
+import hashlib
 
 models = ["Claude", "GPT", "Cogito 70b", "Llama 70b"]
 datasets = ["BIRD Training", "BIRD Developer", "SPIDER"]
@@ -11,29 +12,48 @@ databases = {
     "SPIDER": ["Database 1", "Database 2", "Database 3"]
 }
 
+def compute_all_agents(models):
+    #compute all combinations of agents for Ensemble metric
+    from itertools import combinations
+    all_agents = []
+    for r in range(1, len(models) + 1):
+        for combo in combinations(models, r):
+            all_agents.append(" + ".join(combo))
+    return all_agents
+
+agents = compute_all_agents(models)
+
 # Load query datasets
 @st.cache_data
 def load_queries():
     """Load all query datasets from JSON files"""
-    queries_data = {}
+    queries_list = []
     
     try:
         # Load BIRD Training queries
         with open('datasets/bird_training_queries.json', 'r', encoding='utf-8') as f:
-            queries_data['BIRD Training'] = json.load(f)
+            q_data = pd.DataFrame(json.load(f))
+            q_data['dataset'] = 'BIRD Training'
+            queries_list.append(q_data)
         
         # Load BIRD Developer queries
         with open('datasets/bird_developer_queries.json', 'r', encoding='utf-8') as f:
-            queries_data['BIRD Developer'] = json.load(f)
+            q_data_developer = pd.DataFrame(json.load(f))
+            q_data_developer['dataset'] = 'BIRD Developer'
+            queries_list.append(q_data_developer)
         
         # Load SPIDER queries
         with open('datasets/spider_queries.json', 'r', encoding='utf-8') as f:
-            queries_data['SPIDER'] = json.load(f)
+            q_data_spider = pd.DataFrame(json.load(f))
+            q_data_spider['dataset'] = 'SPIDER'
+            queries_list.append(q_data_spider)
         
+        # Concatenate all dataframes at once for efficiency
+        queries_data = pd.concat(queries_list, ignore_index=True) if queries_list else pd.DataFrame()
         return queries_data
     except FileNotFoundError as e:
         st.error(f"Error loading query files: {e}")
-        return {}
+        return pd.DataFrame()
 
 # Load queries on app start
 all_queries = load_queries()
@@ -41,224 +61,133 @@ all_queries = load_queries()
 # Load model results
 @st.cache_data
 def load_model_results():
-    """Load all model performance results from JSON files"""
-    results_data = {}
+    """Load all model performance results from JSON files and flatten nested structure"""
+    all_rows = []
+    
+    # Metric name mapping
+    metric_mapping = {
+        "Execution Accuracy": "exec_acc",
+        "Exact Match": "exact_match",
+        "TDEX": "tdex",
+        "Ensemble": "llms_ensemble",
+        "LLMs as a Judge": "llm_judge"
+    }
     
     try:
         # Load individual model results
-        for model in ["claude", "gpt", "cogito_70b", "llama_70b"]:
-            with open(f'results/{model}_results.json', 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                # Normalize model name
-                model_key = model.replace("_", " ").title()
-                if model == "cogito_70b":
-                    model_key = "Cogito 70b"
-                elif model == "llama_70b":
-                    model_key = "Llama 70b"
-                results_data[model_key] = data
+        for model in models:
+            lower_model = model.lower().replace(" ", "_")
+            with open(f'results/{lower_model}_results.json', 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+                
+                # Iterate through datasets
+                for dataset_name, queries in json_data.get('datasets', {}).items():
+                    # Iterate through queries in this dataset
+                    for query_data in queries:
+                        query_id = query_data['id']
+                        database = query_data['database']
+                        
+                        # Iterate through metrics for this query
+                        for metric_name, metric_value in query_data.get('metrics', {}).items():
+                            metric_key = metric_mapping.get(metric_name, metric_name)
+                            
+                            # Handle simple metrics (exec_acc, exact_match)
+                            if isinstance(metric_value, (int, float)):
+                                all_rows.append({
+                                    'dataset': dataset_name,
+                                    'database': database,
+                                    'id': query_id,
+                                    'model': model,
+                                    'metric': metric_key,
+                                    'value': metric_value
+                                })
+                            # Handle complex metrics (TDEX, Ensemble, Judge) - nested dicts
+                            elif isinstance(metric_value, dict):
+                                # For now, we'll store the main model's value
+                                # You can extend this to handle ensemble combinations
+                                agents = metric_value.keys()
+                                for agent in agents:
+                                    all_rows.append({
+                                        'dataset': dataset_name,
+                                        'database': database,
+                                        'id': query_id,
+                                        'model': model,
+                                        'metric': metric_key,
+                                        'agent': agent,
+                                        'value': metric_value[agent]
+                                    })
         
-        # Load ensemble results
-        with open('results/ensemble_results.json', 'r', encoding='utf-8') as f:
-            results_data['ensemble'] = json.load(f)
-        
-        # Load judge results
-        with open('results/judge_results.json', 'r', encoding='utf-8') as f:
-            results_data['judge'] = json.load(f)
-        
+        # Create DataFrame from all rows
+        results_data = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
         return results_data
     except FileNotFoundError as e:
         st.error(f"Error loading results files: {e}")
-        return {}
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error parsing results files: {e}")
+        return pd.DataFrame()
 
 # Load results on app start
 all_results = load_model_results()
 
-def get_result_for_query(model_name, dataset_name, database_name, query_id, metric_key):
+def string_to_deterministic_int(s):
+    """Convert a string to a deterministic integer using SHA256 hash.
+    This allows faster equality comparisons than string comparisons.
     """
-    Get the performance result for a specific query.
-    
-    Args:
-        model_name: Name of the model
-        dataset_name: Name of the dataset
-        database_name: Name of the database
-        query_id: ID of the query
-        metric_key: Metric key (exec_acc, exact_match, tdex)
-    
-    Returns:
-        Performance value (0-100) or None if not found
-    """
-    if model_name not in all_results:
-        return None
-    
-    model_data = all_results[model_name]
-    
-    # Navigate to the query result
-    if 'results' in model_data:
-        if dataset_name in model_data['results']:
-            if database_name in model_data['results'][dataset_name]:
-                queries = model_data['results'][dataset_name][database_name]
-                for query_result in queries:
-                    if query_result['query_id'] == query_id:
-                        if metric_key == 'tdex':
-                            # For TDEX, return the model's score from tdex dict
-                            return query_result.get('tdex', {}).get(model_name, None)
-                        else:
-                            return query_result.get(metric_key, None)
-    return None
+    return int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16)
 
-def get_ensemble_result(ensemble_models, dataset_name, database_name, query_id):
-    """
-    Get ensemble result for a specific query and model combination.
-    
-    Args:
-        ensemble_models: List of model names in the ensemble
-        dataset_name: Name of the dataset
-        database_name: Name of the database
-        query_id: ID of the query
-    
-    Returns:
-        Ensemble performance value (0-100) or None if not found
-    """
-    if 'ensemble' not in all_results:
-        return None
-    
-    # Create ensemble key from sorted model names
-    ensemble_key = "+".join(sorted(ensemble_models))
-    
-    ensemble_data = all_results['ensemble'].get('ensembles', {})
-    
-    if ensemble_key in ensemble_data:
-        if dataset_name in ensemble_data[ensemble_key]:
-            if database_name in ensemble_data[ensemble_key][dataset_name]:
-                queries = ensemble_data[ensemble_key][dataset_name][database_name]
-                for query_result in queries:
-                    if query_result['query_id'] == query_id:
-                        return query_result.get('score', None)
-    
-    return None
+# Create a general_id column in both dataframes for quick lookup using vectorized operations
+if not all_queries.empty:
+    # Vectorized string concatenation and hash creation
+    all_queries['g_id'] = (all_queries['dataset'].astype(str) + '|' + 
+                           all_queries['database'].astype(str) + '|' + 
+                           all_queries['id'].astype(str)).apply(string_to_deterministic_int)
+if not all_results.empty:    
+    # Vectorized string concatenation and hash creation
+    all_results['g_id'] = (all_results['dataset'].astype(str) + '|' + 
+                           all_results['database'].astype(str) + '|' + 
+                           all_results['id'].astype(str)).apply(string_to_deterministic_int)
 
-def get_judge_result(judge_model, evaluated_model, dataset_name, database_name, query_id):
-    """
-    Get judge score for a specific model's query result.
-    
-    Args:
-        judge_model: Name of the judge model
-        evaluated_model: Name of the model being evaluated
-        dataset_name: Name of the dataset
-        database_name: Name of the database
-        query_id: ID of the query
-    
-    Returns:
-        Judge score (0-100) or None if not found
-    """
-    if 'judge' not in all_results:
-        return None
-    
-    judge_data = all_results['judge'].get('judge_scores', {})
-    
-    if evaluated_model in judge_data:
-        if dataset_name in judge_data[evaluated_model]:
-            if database_name in judge_data[evaluated_model][dataset_name]:
-                queries = judge_data[evaluated_model][dataset_name][database_name]
-                for query_result in queries:
-                    if query_result['query_id'] == query_id:
-                        return query_result.get('score', None)
-    
-    return None
-
-def collect_active_results(active_queries, selected_models, selected_metrics_dict, tdex_models=None, ensemble_models=None, judge_models=None):
+def collect_active_results(active_queries, selected_models, selected_metrics_dict, tdex_agents=None, ensemble_agents=None, judge_agents=None):
     """
     Collect all relevant results for active queries based on selections.
     
     Args:
-        active_queries: List of active query dictionaries
+        active_queries: DataFrame of active queries
         selected_models: List of selected model names
         selected_metrics_dict: Dictionary of selected metrics {metric_key: bool}
-        tdex_models: List of models selected for TDEX metric (optional)
-        ensemble_models: List of models selected for ensemble (optional)
-        judge_models: List of models selected as judges (optional)
+        tdex_agents: List of agents selected for TDEX metric (optional)
+        ensemble_agents: List of agents selected for ensemble (optional)
+        judge_agents: List of agents selected as judges (optional)
     
     Returns:
-        DataFrame with columns: query_id, dataset, database, model, metric, value
+        DataFrame with columns: query_id, dataset, database, model, metric, agent, value
     """
-    results_list = []
+    if all_results.empty or active_queries.empty:
+        return pd.DataFrame()
     
-    for query in active_queries:
-        query_id = query['id']
-        dataset = query['dataset']
-        database = query['database']
-        
-        # Collect results for each selected model and metric
-        for model in selected_models:
-            # Execution Accuracy
-            if selected_metrics_dict.get('exec_acc', False):
-                exec_acc = get_result_for_query(model, dataset, database, query_id, 'exec_acc')
-                if exec_acc is not None:
-                    results_list.append({
-                        'query_id': query_id,
-                        'dataset': dataset,
-                        'database': database,
-                        'model': model,
-                        'metric': 'exec_acc',
-                        'value': exec_acc
-                    })
-            
-            # Exact Match
-            if selected_metrics_dict.get('exact_match', False):
-                exact_match = get_result_for_query(model, dataset, database, query_id, 'exact_match')
-                if exact_match is not None:
-                    results_list.append({
-                        'query_id': query_id,
-                        'dataset': dataset,
-                        'database': database,
-                        'model': model,
-                        'metric': 'exact_match',
-                        'value': exact_match
-                    })
-            
-            # TDEX (uses tdex_models if specified)
-            if selected_metrics_dict.get('tdex', False) and tdex_models:
-                if model in tdex_models:
-                    tdex_score = get_result_for_query(model, dataset, database, query_id, 'tdex')
-                    if tdex_score is not None:
-                        results_list.append({
-                            'query_id': query_id,
-                            'dataset': dataset,
-                            'database': database,
-                            'model': model,
-                            'metric': 'tdex',
-                            'value': tdex_score
-                        })
-            
-            # Judge (if model is being judged)
-            if selected_metrics_dict.get('llm_judge', False) and judge_models:
-                for judge in judge_models:
-                    judge_score = get_judge_result(judge, model, dataset, database, query_id)
-                    if judge_score is not None:
-                        results_list.append({
-                            'query_id': query_id,
-                            'dataset': dataset,
-                            'database': database,
-                            'model': model,
-                            'metric': f'judge_{judge}',
-                            'value': judge_score
-                        })
-        
-        # Ensemble (separate from individual models)
-        if selected_metrics_dict.get('llms_ensemble', False) and ensemble_models and len(ensemble_models) >= 2:
-            ensemble_score = get_ensemble_result(ensemble_models, dataset, database, query_id)
-            if ensemble_score is not None:
-                ensemble_name = "+".join(sorted(ensemble_models))
-                results_list.append({
-                    'query_id': query_id,
-                    'dataset': dataset,
-                    'database': database,
-                    'model': ensemble_name,
-                    'metric': 'llms_ensemble',
-                    'value': ensemble_score
-                })
+    # Get active query IDs using pandas Series
+    active_g_ids = active_queries['g_id'] if 'g_id' in active_queries.columns else pd.Series(dtype='int64')
     
-    return pd.DataFrame(results_list) if results_list else pd.DataFrame()
+    # Get selected metrics using pandas-friendly list comprehension
+    selected_metric_keys = [m for m, selected in selected_metrics_dict.items() if selected]
+    
+    # Use pandas boolean indexing with & instead of 'and'
+    active_results = all_results[
+        all_results['g_id'].isin(active_g_ids) & 
+        all_results['model'].isin(selected_models) & 
+        all_results['metric'].isin(selected_metric_keys)
+    ].copy()
+
+    # Filter by agents for complex metrics if specified
+    if tdex_agents is not None:
+        active_results = active_results[~((active_results['metric'] == 'tdex') & ~active_results['agent'].isin(tdex_agents))]
+    if ensemble_agents is not None:
+        active_results = active_results[~((active_results['metric'] == 'llms_ensemble') & ~active_results['agent'].isin(ensemble_agents))]
+    if judge_agents is not None:
+        active_results = active_results[~((active_results['metric'] == 'llm_judge') & ~active_results['agent'].isin(judge_agents))]
+
+    return active_results
 
 
 metrics = [
@@ -407,33 +336,41 @@ def get_metric_class(metric_key):
     }
     return class_map.get(metric_key, "")
 
-def filter_queries(queries, complexity_range, length_range, tables_range, attributes_range=None):
+def filter_queries(queries_df, complexity_range, length_range, tables_range, attributes_range=None):
     """
     Filter queries based on complexity, length, tables, and attributes involved ranges.
     
     Args:
-        queries: List of query dictionaries
+        queries_df: DataFrame of queries
         complexity_range: Tuple (min, max) for complexity
         length_range: Tuple (min, max) for length
         tables_range: Tuple (min, max) for tables
         attributes_range: Tuple (min, max) for attributes (optional)
     
     Returns:
-        Filtered list of queries
+        Filtered DataFrame of queries
     """
-    filtered = []
-    for query in queries:
-        if (complexity_range[0] <= query['complexity'] <= complexity_range[1] and
-            length_range[0] <= query['length'] <= length_range[1] and
-            tables_range[0] <= query['tables'] <= tables_range[1]):
-            
-            # Check attributes if range is provided
-            if attributes_range is not None:
-                if attributes_range[0] <= query.get('attributes', 0) <= attributes_range[1]:
-                    filtered.append(query)
-            else:
-                filtered.append(query)
-    return filtered
+    if queries_df.empty:
+        return queries_df
+    
+    # Use pandas boolean indexing for efficient filtering
+    mask = (
+        (queries_df['complexity'] >= complexity_range[0]) & 
+        (queries_df['complexity'] <= complexity_range[1]) &
+        (queries_df['length'] >= length_range[0]) & 
+        (queries_df['length'] <= length_range[1]) &
+        (queries_df['tables'] >= tables_range[0]) & 
+        (queries_df['tables'] <= tables_range[1])
+    )
+    
+    # Check attributes if range is provided
+    if attributes_range is not None and 'attributes' in queries_df.columns:
+        mask &= (
+            (queries_df['attributes'] >= attributes_range[0]) & 
+            (queries_df['attributes'] <= attributes_range[1])
+        )
+    
+    return queries_df[mask].copy()
 
 def get_queries_for_databases(dataset_name, database_names):
     """
@@ -444,16 +381,14 @@ def get_queries_for_databases(dataset_name, database_names):
         database_names: List of database names
     
     Returns:
-        Dictionary mapping database names to their queries
+        DataFrame of queries for the specified databases
     """
-    if dataset_name not in all_queries:
-        return {}
+    if all_queries.empty:
+        return pd.DataFrame()
     
-    result = {}
-    for db_name in database_names:
-        if db_name in all_queries[dataset_name]:
-            result[db_name] = all_queries[dataset_name][db_name]
-    return result
+    # Use pandas boolean indexing to filter
+    mask = (all_queries['dataset'] == dataset_name) & (all_queries['database'].isin(database_names))
+    return all_queries[mask].copy()
 
 def collect_all_selected_queries(selected_datasets_list, selected_databases_list):
     """
@@ -464,58 +399,48 @@ def collect_all_selected_queries(selected_datasets_list, selected_databases_list
         selected_databases_list: List of selected database names
     
     Returns:
-        List of all query dictionaries with added metadata (dataset, database)
+        DataFrame of all selected queries
     """
-    all_selected = []
+    if all_queries.empty or not selected_datasets_list:
+        return pd.DataFrame()
     
-    for dataset_name in selected_datasets_list:
-        if dataset_name not in all_queries:
-            continue
-            
-        dataset_dbs = databases.get(dataset_name, [])
-        
-        for db_name in dataset_dbs:
-            # Include database if it's in selected list or if no databases are selected yet
-            if db_name in selected_databases_list or len(selected_databases_list) == 0:
-                if db_name in all_queries[dataset_name]:
-                    queries = all_queries[dataset_name][db_name]
-                    # Add metadata to each query
-                    for query in queries:
-                        query_with_meta = query.copy()
-                        query_with_meta['dataset'] = dataset_name
-                        query_with_meta['database'] = db_name
-                        all_selected.append(query_with_meta)
+    # Use pandas boolean indexing for efficient filtering
+    dataset_mask = all_queries['dataset'].isin(selected_datasets_list)
     
-    return all_selected
+    # If databases are selected, filter by them; otherwise include all databases
+    if selected_databases_list:
+        database_mask = all_queries['database'].isin(selected_databases_list)
+        combined_mask = dataset_mask & database_mask
+    else:
+        combined_mask = dataset_mask
+    
+    return all_queries[combined_mask].copy()
 
-def get_query_ranges(queries_list):
+def get_query_ranges(queries_df):
     """
     Calculate min/max ranges for query attributes.
     
     Args:
-        queries_list: List of query dictionaries
+        queries_df: DataFrame of queries
     
     Returns:
         Dictionary with min/max values for each attribute
     """
-    if not queries_list:
+    if queries_df.empty:
         return {
             'complexity': (0, 3),
             'length': (0, 3),
-            'tables': (0, 12),
-            'attributes': (0, 20)
+            'tables': (0, 30),
+            'attributes': (0, 30)
         }
     
-    complexities = [q['complexity'] for q in queries_list]
-    lengths = [q['length'] for q in queries_list]
-    tables = [q['tables'] for q in queries_list]
-    attributes = [q.get('attributes', 0) for q in queries_list]
-    
+    # Use pandas vectorized min/max operations
     return {
-        'complexity': (min(complexities), max(complexities)),
-        'length': (min(lengths), max(lengths)),
-        'tables': (min(tables), max(tables)),
-        'attributes': (min(attributes), max(attributes))
+        'complexity': (int(queries_df['complexity'].min()), int(queries_df['complexity'].max())),
+        'length': (int(queries_df['length'].min()), int(queries_df['length'].max())),
+        'tables': (int(queries_df['tables'].min()), int(queries_df['tables'].max())),
+        'attributes': (int(queries_df['attributes'].min()) if 'attributes' in queries_df.columns else 0, 
+                      int(queries_df['attributes'].max()) if 'attributes' in queries_df.columns else 30)
     }
 
 st.title("Demo Paper")
@@ -737,33 +662,26 @@ with columns[0]:
             else:
                 st.info(f"🔍 **Query attive:** {total_active} / {total_available}")
             
-            # Show breakdown by dataset/database
+            # Show breakdown by dataset/database using pandas groupby
             if total_active > 0:
                 with st.expander("📊 Ripartizione query attive"):
-                    breakdown = {}
-                    for query in active_queries:
-                        key = f"{query['dataset']} → {query['database']}"
-                        breakdown[key] = breakdown.get(key, 0) + 1
+                    # Use pandas groupby for efficient aggregation
+                    breakdown = active_queries.groupby(['dataset', 'database']).size().reset_index(name='count')
                     
-                    for key, count in breakdown.items():
-                        st.markdown(f"- **{key}:** {count} query")
+                    for _, row in breakdown.iterrows():
+                        key = f"{row['dataset']} → {row['database']}"
+                        st.markdown(f"- **{key}:** {row['count']} query")
             
             # Store active queries in session state for metric calculations
             st.session_state['active_queries'] = active_queries
             st.session_state['active_queries_count'] = total_active
-            
-            # Create dataframe for active queries
-            if total_active > 0:
-                df_active = pd.DataFrame(active_queries)
-                st.session_state['active_queries_df'] = df_active
-            else:
-                st.session_state['active_queries_df'] = pd.DataFrame()
+            st.session_state['active_queries_df'] = active_queries  # active_queries is already a DataFrame
             
             # Show active queries in an expander
             if total_active > 0:
                 with st.expander(f"Visualizza query attive ({total_active})"):
                     # Display as dataframe with selected columns
-                    display_df = df_active[['id', 'query', 'dataset', 'database', 'complexity', 'length', 'tables', 'attributes']].copy()
+                    display_df = active_queries[['id', 'query', 'dataset', 'database', 'complexity', 'length', 'tables', 'attributes']].copy()
                     display_df.columns = ['ID', 'Query', 'Dataset', 'Database', 'Complessità', 'Lunghezza', 'Tabelle', 'Attributi']
                     
                     st.dataframe(
@@ -774,7 +692,7 @@ with columns[0]:
                     )
                     
                     # Download button for active queries
-                    csv = df_active.to_csv(index=False).encode('utf-8')
+                    csv = active_queries.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label="📥 Scarica query attive (CSV)",
                         data=csv,

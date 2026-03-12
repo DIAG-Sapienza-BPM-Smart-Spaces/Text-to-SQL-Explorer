@@ -1,14 +1,16 @@
 import json
 import random
+from itertools import combinations
+import os
 
 # Set seed for reproducibility
 random.seed(42)
 
-# Database names
-databases = {
-    "BIRD Training": ["Human Resources", "Football team", "Chicago Crimes"],
-    "BIRD Developer": ["European Schools", "Soccer teams", "Altro database"],
-    "SPIDER": ["Database 1", "Database 2", "Database 3"]
+# Database names and their corresponding files
+datasets = {
+    "BIRD Training": "datasets/bird_training_queries.json",
+    "BIRD Developer": "datasets/bird_developer_queries.json",
+    "SPIDER": "datasets/spider_queries.json"
 }
 
 # Model performance averages
@@ -19,122 +21,138 @@ model_performance = {
     "Llama 70b": (65, 70)    # avg 67.5%
 }
 
-# Complexity ranges based on query_id
-def get_complexity_range(query_id):
-    if 1 <= query_id <= 5:
-        return (85, 100)  # Complexity 0
-    elif 6 <= query_id <= 10:
-        return (75, 90)   # Complexity 1
-    elif 11 <= query_id <= 15:
-        return (75, 85)   # Complexity 1-2  
-    elif 16 <= query_id <= 20:
-        return (45, 70)   # Complexity 3
-    elif 21 <= query_id <= 25:
-        return (85, 95)   # Complexity 0-1 (mix)
-    else:  # 26-30
-        return (60, 80)   # Complexity 2
+models = list(model_performance.keys())
+metrics = ["Execution Accuracy", "Exact Match", "TDEX", "Ensemble", "LLMs as a Judge"]
 
-def generate_query_result(query_id, model_name):
-    """Generate a single query result for a specific model"""
-    complexity_range = get_complexity_range(query_id)
-    model_range = model_performance[model_name]
+
+def generate_metric_value(model, metric_name, query_complexity):
+    """Generate a metric value based on model performance and query complexity"""
+    min_perf, max_perf = model_performance[model]
     
-    # Blend complexity and model performance
-    min_score = max(complexity_range[0], model_range[0] - 10)
-    max_score = min(complexity_range[1], model_range[1] + 5)
+    # Adjust performance based on complexity (0-3)
+    complexity_penalty = query_complexity * 3
+    adjusted_min = max(0, min_perf - complexity_penalty)
+    adjusted_max = max(0, max_perf - complexity_penalty)
     
-    # Ensure min <= max
-    if min_score > max_score:
-        min_score, max_score = max_score, min_score
+    # Add some variation
+    value = random.uniform(adjusted_min, adjusted_max)
     
-    # Generate exec_acc first
-    exec_acc = random.randint(max(0, min_score), min(100, max_score))
+    # Ensure value is between 0 and 100
+    return round(min(100, max(0, value)), 2)
+
+
+def generate_tdex_metric(query_complexity):
+    """Generate TDEX metric values for all models"""
+    return {model: generate_metric_value(model, "TDEX", query_complexity) 
+            for model in models}
+
+
+def generate_llms_judge_metric(query_complexity):
+    """Generate LLMs as a Judge metric values for all models"""
+    return {model: generate_metric_value(model, "LLMs as a Judge", query_complexity) 
+            for model in models}
+
+
+def generate_ensemble_metric(query_complexity):
+    """Generate Ensemble metric values for all model combinations"""
+    ensemble_values = {}
     
-    # exact_match is always <= exec_acc, typically 10-20 points lower
-    exact_match_diff = random.randint(8, 18)
-    exact_match = max(0, exec_acc - exact_match_diff)
+    # Single models
+    for model in models:
+        ensemble_values[model] = generate_metric_value(model, "Ensemble", query_complexity)
     
-    # Generate tdex scores for all models
-    tdex = {}
-    for tdex_model in ["Claude", "GPT", "Cogito 70b", "Llama 70b"]:
-        tdex_range = model_performance[tdex_model]
-        tdex_min = max(complexity_range[0] - 5, tdex_range[0] - 10)
-        tdex_max = min(complexity_range[1], tdex_range[1] + 5)
-        # Ensure min <= max
-        if tdex_min > tdex_max:
-            tdex_min, tdex_max = tdex_max, tdex_min
-        tdex[tdex_model] = random.randint(max(0, tdex_min), min(100, tdex_max))
+    # Pairs of models
+    for pair in combinations(models, 2):
+        key = " + ".join(pair)
+        # Ensemble typically performs better than individual models
+        avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in pair]) / (2 * len(pair))
+        complexity_penalty = query_complexity * 2.5
+        value = random.uniform(max(0, avg_perf - complexity_penalty), 
+                               min(100, avg_perf + 5 - complexity_penalty))
+        ensemble_values[key] = round(value, 2)
     
-    return {
-        "query_id": query_id,
-        "exec_acc": exec_acc,
-        "exact_match": exact_match,
-        "tdex": tdex
+    # Triplets of models
+    for triplet in combinations(models, 3):
+        key = " + ".join(triplet)
+        avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in triplet]) / (2 * len(triplet))
+        complexity_penalty = query_complexity * 2
+        value = random.uniform(max(0, avg_perf - complexity_penalty), 
+                               min(100, avg_perf + 7 - complexity_penalty))
+        ensemble_values[key] = round(value, 2)
+    
+    # All models
+    key = " + ".join(models)
+    avg_perf = sum([model_performance[m][0] + model_performance[m][1] for m in models]) / (2 * len(models))
+    complexity_penalty = query_complexity * 1.5
+    value = random.uniform(max(0, avg_perf - complexity_penalty), 
+                           min(100, avg_perf + 10 - complexity_penalty))
+    ensemble_values[key] = round(value, 2)
+    
+    return ensemble_values
+
+
+def generate_results_for_query(query, model):
+    """Generate all metric results for a single query"""
+    complexity = query.get("complexity", 0)
+    
+    results = {
+        "id": query["id"],
+        "query": query["query"],
+        "database": query["database"],
+        "complexity": complexity,
+        "length": query.get("length", 0),
+        "tables": query.get("tables", 1),
+        "attributes": query.get("attributes", 3),
+        "metrics": {
+            "Execution Accuracy": generate_metric_value(model, "Execution Accuracy", complexity),
+            "Exact Match": generate_metric_value(model, "Exact Match", complexity),
+            "TDEX": generate_tdex_metric(complexity),
+            "Ensemble": generate_ensemble_metric(complexity),
+            "LLMs as a Judge": generate_llms_judge_metric(complexity)
+        }
     }
-
-def generate_database_results(database_name, model_name, num_queries=30):
-    """Generate results for all queries in a database"""
-    return [generate_query_result(i, model_name) for i in range(1, num_queries + 1)]
-
-def generate_model_results(model_name, include_bird_dev=True, include_spider=True):
-    """Generate complete results for a model"""
-    results = {}
     
-    for dataset_type, db_list in databases.items():
-        # Skip datasets if not included
-        if dataset_type == "BIRD Developer" and not include_bird_dev:
-            continue
-        if dataset_type == "SPIDER" and not include_spider:
-            continue
+    return results
+
+
+def main():
+    # Create results directory if it doesn't exist
+    os.makedirs("results", exist_ok=True)
+    
+    # For each model, generate a results file
+    for model in models:
+        print(f"Generating results for {model}...")
+        
+        model_results = {
+            "model": model,
+            "datasets": {}
+        }
+        
+        # Load queries from each dataset
+        for dataset_name, dataset_file in datasets.items():
+            print(f"  Processing {dataset_name}...")
             
-        results[dataset_type] = {}
-        for db_name in db_list:
-            results[dataset_type][db_name] = generate_database_results(db_name, model_name)
+            with open(dataset_file, 'r') as f:
+                queries = json.load(f)
+            
+            # Generate results for each query
+            dataset_results = []
+            for query in queries:
+                query_results = generate_results_for_query(query, model)
+                dataset_results.append(query_results)
+            
+            model_results["datasets"][dataset_name] = dataset_results
+        
+        # Save results to file
+        output_file = f"results/{model.replace(' ', '_').lower()}_results.json"
+        with open(output_file, 'w') as f:
+            json.dump(model_results, f, indent=2)
+        
+        print(f"  Saved to {output_file}")
     
-    return {
-        "model": model_name,
-        "results": results
-    }
+    print("\nAll results generated successfully!")
 
-# Read existing claude_results.json to preserve BIRD Training data
-with open('results/claude_results.json', 'r') as f:
-    claude_data = json.load(f)
 
-# Add BIRD Developer and SPIDER to Claude results
-print("Completing claude_results.json...")
-for dataset_type in ["BIRD Developer", "SPIDER"]:
-    claude_data["results"][dataset_type] = {}
-    for db_name in databases[dataset_type]:
-        claude_data["results"][dataset_type][db_name] = generate_database_results(db_name, "Claude")
+if __name__ == "__main__":
+    main()
 
-# Save completed claude_results.json
-with open('results/claude_results.json', 'w') as f:
-    json.dump(claude_data, f, indent=2)
-print("✓ claude_results.json completed")
-
-# Generate GPT results
-print("Generating gpt_results.json...")
-gpt_data = generate_model_results("GPT")
-with open('results/gpt_results.json', 'w') as f:
-    json.dump(gpt_data, f, indent=2)
-print("✓ gpt_results.json created")
-
-# Generate Cogito 70b results
-print("Generating cogito_70b_results.json...")
-cogito_data = generate_model_results("Cogito 70b")
-with open('results/cogito_70b_results.json', 'w') as f:
-    json.dump(cogito_data, f, indent=2)
-print("✓ cogito_70b_results.json created")
-
-# Generate Llama 70b results
-print("Generating llama_70b_results.json...")
-llama_data = generate_model_results("Llama 70b")
-with open('results/llama_70b_results.json', 'w') as f:
-    json.dump(llama_data, f, indent=2)
-print("✓ llama_70b_results.json created")
-
-print("\nAll results files generated successfully!")
-print("- claude_results.json: Complete with all 9 databases (90 queries per dataset)")
-print("- gpt_results.json: All 9 databases (90 queries per dataset)")
-print("- cogito_70b_results.json: All 9 databases (90 queries per dataset)")
-print("- llama_70b_results.json: All 9 databases (90 queries per dataset)")
