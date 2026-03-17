@@ -67,10 +67,7 @@ def load_model_results():
     # Metric name mapping
     metric_mapping = {
         "Execution Accuracy": "exec_acc",
-        "Exact Match": "exact_match",
-        "TDEX": "tdex",
-        "Ensemble": "llms_ensemble",
-        "LLMs as a Judge": "llm_judge"
+        "Exact Match": "exact_match"
     }
     
     try:
@@ -130,6 +127,54 @@ def load_model_results():
 # Load results on app start
 all_results = load_model_results()
 
+
+def model_to_file_stem(model_name):
+    """Convert model display name to the file stem used in generated files."""
+    return model_name.replace(" ", "_").lower()
+
+
+def build_selector_choice_index(payload):
+    """Index selector choices by dataset and (query id, database) for fast lookup."""
+    index = {}
+    for dataset_name, rows in payload.get('datasets', {}).items():
+        by_query = {}
+        for row in rows:
+            key = (row.get('id'), row.get('database'))
+            by_query[key] = row.get('choices', {})
+        index[dataset_name] = by_query
+    return index
+
+
+@st.cache_data
+def load_selector_choices():
+    """Load generated selector choices (single judges + ensemble)."""
+    selector_data = {
+        'single_selector': {},
+        'llms_ensemble': None
+    }
+
+    # Single-judge selector files
+    for judge in models:
+        stem = model_to_file_stem(judge)
+        file_path = f'choices/{stem}_single_selector_choices.json'
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+            selector_data['single_selector'][judge] = build_selector_choice_index(payload)
+
+    # Ensemble selector file
+    ensemble_path = 'choices/llms_ensemble_selector_choices.json'
+    if os.path.exists(ensemble_path):
+        with open(ensemble_path, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        selector_data['llms_ensemble'] = build_selector_choice_index(payload)
+
+    return selector_data
+
+
+# Load selector choices on app start
+all_selector_choices = load_selector_choices()
+
 def string_to_deterministic_int(s):
     """Convert a string to a deterministic integer using SHA256 hash.
     This allows faster equality comparisons than string comparisons.
@@ -148,17 +193,16 @@ if not all_results.empty:
                            all_results['database'].astype(str) + '|' + 
                            all_results['id'].astype(str)).apply(string_to_deterministic_int)
 
-def collect_active_results(active_queries, selected_models, selected_metrics_dict, tdex_agents=None, ensemble_agents=None, judge_agents=None):
+def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None, selector_models=None):
     """
     Collect all relevant results for active queries based on selections.
     
     Args:
         active_queries: DataFrame of active queries
-        selected_models: List of selected model names
+        selected_models: List of selected candidate model names
         selected_metrics_dict: Dictionary of selected metrics {metric_key: bool}
-        tdex_agents: List of agents selected for TDEX metric (optional)
-        ensemble_agents: List of agents selected for ensemble (optional)
-        judge_agents: List of agents selected as judges (optional)
+        selected_selectors_dict: Dictionary of selected selectors {selector_key: bool}
+        selector_models: List of selected judge models for single-selector mode
     
     Returns:
         DataFrame with columns: query_id, dataset, database, model, metric, agent, value
@@ -179,23 +223,105 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         all_results['metric'].isin(selected_metric_keys)
     ].copy()
 
-    # Filter by agents for complex metrics if specified
-    if tdex_agents is not None:
-        active_results = active_results[~((active_results['metric'] == 'tdex') & ~active_results['agent'].isin(tdex_agents))]
-    if ensemble_agents is not None:
-        active_results = active_results[~((active_results['metric'] == 'llms_ensemble') & ~active_results['agent'].isin(ensemble_agents))]
-    if judge_agents is not None:
-        active_results = active_results[~((active_results['metric'] == 'llm_judge') & ~active_results['agent'].isin(judge_agents))]
+    # Build selector-derived metric rows if selector mode is active and we have >=2 candidate models.
+    if selected_selectors_dict is None:
+        selected_selectors_dict = {}
+    if selector_models is None:
+        selector_models = []
+
+    selector_rows = []
+    if len(selected_models) >= 2 and selected_metric_keys:
+        combo_label = " + ".join(selected_models)
+
+        # Build lookup for metric values: (g_id, model, metric) -> value
+        metric_lookup_df = all_results[
+            all_results['g_id'].isin(active_g_ids) &
+            all_results['metric'].isin(selected_metric_keys)
+        ][['g_id', 'model', 'metric', 'value']].copy()
+
+        metric_lookup = {
+            (row['g_id'], row['model'], row['metric']): row['value']
+            for _, row in metric_lookup_df.iterrows()
+        }
+
+        # Single selector rows (one bar source per selected judge model)
+        if selected_selectors_dict.get('single_selector', False):
+            for judge in selector_models:
+                judge_index = all_selector_choices.get('single_selector', {}).get(judge, {})
+                if not judge_index:
+                    continue
+
+                for _, query_row in active_queries.iterrows():
+                    dataset_name = query_row['dataset']
+                    query_key = (query_row['id'], query_row['database'])
+                    g_id = query_row['g_id']
+
+                    choices_map = judge_index.get(dataset_name, {}).get(query_key, {})
+                    chosen_candidate = choices_map.get(combo_label)
+                    if chosen_candidate is None:
+                        continue
+
+                    for metric_key in selected_metric_keys:
+                        value = metric_lookup.get((g_id, chosen_candidate, metric_key))
+                        if value is None:
+                            continue
+                        selector_rows.append({
+                            'dataset': dataset_name,
+                            'database': query_row['database'],
+                            'id': query_row['id'],
+                            'g_id': g_id,
+                            'model': f'{judge} selections',
+                            'metric': metric_key,
+                            'value': value,
+                            'selector_type': 'single_selector',
+                            'selected_candidate': chosen_candidate,
+                        })
+
+        # Ensemble selector rows (single additional bar source)
+        if selected_selectors_dict.get('llms_ensemble', False):
+            ensemble_index = all_selector_choices.get('llms_ensemble', {})
+            if ensemble_index:
+                for _, query_row in active_queries.iterrows():
+                    dataset_name = query_row['dataset']
+                    query_key = (query_row['id'], query_row['database'])
+                    g_id = query_row['g_id']
+
+                    choices_map = ensemble_index.get(dataset_name, {}).get(query_key, {})
+                    chosen_candidate = choices_map.get(combo_label)
+                    if chosen_candidate is None:
+                        continue
+
+                    for metric_key in selected_metric_keys:
+                        value = metric_lookup.get((g_id, chosen_candidate, metric_key))
+                        if value is None:
+                            continue
+                        selector_rows.append({
+                            'dataset': dataset_name,
+                            'database': query_row['database'],
+                            'id': query_row['id'],
+                            'g_id': g_id,
+                            'model': 'Ensemble selection',
+                            'metric': metric_key,
+                            'value': value,
+                            'selector_type': 'llms_ensemble',
+                            'selected_candidate': chosen_candidate,
+                        })
+
+    if selector_rows:
+        selector_df = pd.DataFrame(selector_rows)
+        active_results = pd.concat([active_results, selector_df], ignore_index=True)
 
     return active_results
 
 
 metrics = [
     {"name": "Execution Accuracy", "key": "exec_acc", "default": False, "tooltip": "Measures if the generated SQL query executes without errors and produces correct results"},
-    {"name": "Exact Match", "key": "exact_match", "default": False, "tooltip": "Checks if the generated SQL exactly matches the reference query"},
-    {"name": "TDEX", "key": "tdex", "default": False, "tooltip": "Test-suite-based Database EXecution accuracy - evaluates query validity with test cases"},
-    {"name": "LLMs Ensemble", "key": "llms_ensemble", "default": False, "tooltip": "Combines predictions from multiple language models to improve accuracy"},
-    {"name": "LLM as a Judge", "key": "llm_judge", "default": False, "tooltip": "Uses a language model to evaluate the quality and correctness of generated queries"}
+    {"name": "Exact Match", "key": "exact_match", "default": False, "tooltip": "Checks if the generated SQL exactly matches the reference query"}
+]
+
+selectors = [
+    {"name": "Single LLm Selector", "key": "single_selector", "default": False, "tooltip": "Select the best SQL candidate based on a single LLM's evaluation"},
+    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "tooltip": "Select the best SQL candidate based on an ensemble of multiple LLMs' evaluations"}
 ]
 
 # Color definitions - organized by color families
@@ -215,9 +341,11 @@ dataset_colors = {
 metric_colors = {
     "exec_acc": "#2E7D32",  # Dark green
     "exact_match": "#66BB6A",  # Light green
-    "tdex": "#6A1B9A",  # Dark purple
-    "llms_ensemble": "#AB47BC",  # Medium purple
-    "llm_judge": "#CE93D8"  # Light purple
+}
+
+selectors_colors = {
+    "single_selector": "#6A1B9A",  # Purple
+    "llms_ensemble": "#AB47BC"  # Light purple
 }
 
 st.set_page_config(layout="wide")
@@ -236,12 +364,13 @@ st.markdown("""
 .color-bird-developer { color: #FF9500 !important; }
 .color-spider { color: #FFBB66 !important; }
 
-/* Metric colors - Green/Purple family */
+/* Metric colors - Green family */
 .color-exec-acc { color: #2E7D32 !important; }
 .color-exact-match { color: #66BB6A !important; }
-.color-tdex { color: #6A1B9A !important; }
+            
+/* Selector colors Grey/Purple family */
+.color-single-selector { color: #6A1B9A !important; }
 .color-llms-ensemble { color: #AB47BC !important; }
-.color-llm-judge { color: #CE93D8 !important; }
 
 /* Background colors for conditional boxes */
 .bg-bird-training { background-color: rgba(232, 93, 4, 0.15) !important; padding: 10px; border-radius: 5px; }
@@ -329,12 +458,16 @@ def get_dataset_bg_class(dataset_name):
 def get_metric_class(metric_key):
     class_map = {
         "exec_acc": "color-exec-acc",
-        "exact_match": "color-exact-match",
-        "tdex": "color-tdex",
-        "llms_ensemble": "color-llms-ensemble",
-        "llm_judge": "color-llm-judge"
+        "exact_match": "color-exact-match"
     }
     return class_map.get(metric_key, "")
+
+def get_selector_class(selector_key):
+    class_map = {
+        "single_selector": "color-single-selector",
+        "llms_ensemble": "color-llms-ensemble"
+    }
+    return class_map.get(selector_key, "")
 
 def filter_queries(queries_df, complexity_range, length_range, tables_range, attributes_range=None):
     """
@@ -519,53 +652,42 @@ with columns[0]:
     
     # SECONDA SOTTO-COLONNA
     with sub_cols[1]:
-        # Selezione TDEX (condizionale)
-        if selected_metrics.get("tdex", False):
-            css_class = get_metric_class("tdex")
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">TDEX</h3><span class="tooltip-text">Select models to use for TDEX metric evaluation</span></div>', unsafe_allow_html=True)
-                selected_tdex = []
-                for i, model in enumerate(models):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"tdex_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="bg-tdex">{model}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_tdex.append(model)
+        # Selezione Selettore
+        with st.container(border=True):
+            st.markdown('<div class="tooltip-container"><h3>Selettori</h3><span class="tooltip-text">Select way to select SQL candidates between selected models</span></div>', unsafe_allow_html=True)
+            selected_selectors = {}
+            for selector in selectors:
+                css_class = get_selector_class(selector["key"])
+                col1, col2 = st.columns([0.1, 0.9])
+                with col1:
+                    checked = st.checkbox("", value=selector["default"], key=f"selector_{selector['key']}", label_visibility="collapsed")
+                with col2:
+                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector["name"]}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
+                selected_selectors[selector["key"]] = checked
 
-        # Selezione Ensemble (condizionale)
-        if selected_metrics.get("llms_ensemble", False):
-            css_class = get_metric_class("llms_ensemble")
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">Selezione Ensemble</h3><span class="tooltip-text">Select models to include in the ensemble prediction</span></div>', unsafe_allow_html=True)
-                selected_ensemble = []
-                for i, model in enumerate(models):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"ensemble_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="bg-llms-ensemble">{model}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_ensemble.append(model)
-        
-        # Selezione Judge (condizionale - appare solo se LLM as a Judge è selezionato)
-        if selected_metrics.get("llm_judge", False):
-            css_class = get_metric_class("llm_judge")
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">Selezione Judge</h3><span class="tooltip-text">Select which model will act as the judge for evaluation</span></div>', unsafe_allow_html=True)
-                selected_judges = []
-                for i, model in enumerate(models):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"judge_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="bg-llm-judge">{model}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_judges.append(model)
+        # Modelli da usare come giudici single-selector
+        with st.container(border=True):
+            st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single LLM selectors</span></div>', unsafe_allow_html=True)
+            selected_selector_models = []
+            single_selector_enabled = selected_selectors.get("single_selector", False)
+            for i, model in enumerate(models):
+                css_class = get_model_class(model)
+                col1, col2 = st.columns([0.1, 0.9])
+                with col1:
+                    checked = st.checkbox(
+                        "",
+                        value=False,
+                        key=f"selector_model_{i}",
+                        label_visibility="collapsed",
+                        disabled=not single_selector_enabled
+                    )
+                with col2:
+                    st.markdown(f'<p class="{css_class} text-item">{model}</p>', unsafe_allow_html=True)
+                if checked and single_selector_enabled:
+                    selected_selector_models.append(model)
+
+            if single_selector_enabled and not selected_selector_models:
+                st.caption("Select at least one selector model to display single-selector bars.")
 
         # Selezione Database (parte 2) - Dinamica basata sui dataset selezionati
         if len(selected_datasets) > 1 and selected_datasets[1] in databases:
@@ -700,40 +822,13 @@ with columns[0]:
                         mime="text/csv"
                     )
             
-            # Collect active results based on all selections
-            # Get TDEX models if TDEX is selected
-            active_tdex_models = []
-            if selected_metrics.get("tdex", False):
-                # Retrieve selected TDEX models from checkboxes
-                for i, model in enumerate(models):
-                    if st.session_state.get(f"tdex_{i}", False):
-                        active_tdex_models.append(model)
-            
-            # Get Ensemble models if Ensemble is selected
-            active_ensemble_models = []
-            if selected_metrics.get("llms_ensemble", False):
-                for i, model in enumerate(models):
-                    if st.session_state.get(f"ensemble_{i}", False):
-                        active_ensemble_models.append(model)
-            
-            # Get Judge models if Judge is selected
-            active_judge_models = []
-            if selected_metrics.get("llm_judge", False):
-                for i, model in enumerate(models):
-                    if st.session_state.get(f"judge_{i}", False):
-                        active_judge_models.append(model)
-
-            # Calculate ensemble string - join selected models with " + "
-            ensemble_string = " + ".join(active_ensemble_models) if active_ensemble_models else None
-            
             # Collect all active results
             active_results_df = collect_active_results(
                 active_queries,
                 selected_models,
                 selected_metrics,
-                tdex_agents=active_tdex_models if active_tdex_models else None,
-                ensemble_agents=[ensemble_string] if ensemble_string else None,
-                judge_agents=active_judge_models if active_judge_models else None
+                selected_selectors_dict=selected_selectors,
+                selector_models=selected_selector_models
             )
             
             # Store active results in session state
@@ -808,7 +903,10 @@ with columns[1]:
             metric_display = metric_names.get(row['metric'], row['metric'])
             
             # Add agent info for complex metrics
-            if 'agent' in row and pd.notna(row['agent']):
+            if (
+                'agent' in row and pd.notna(row['agent']) and
+                row['metric'] in ['tdex', 'llms_ensemble', 'llm_judge']
+            ):
                 return f"{metric_display} ({row['agent']})"
             return metric_display
         
@@ -823,9 +921,34 @@ with columns[1]:
         # Get unique metrics in order (preserve ordering)
         unique_metrics = grouped_data['metric_label'].unique()
         
-        # Add a trace for each model
-        for model in selected_models:
-            model_data = grouped_data[grouped_data['model'] == model]
+        # Build visible sources: selected candidate models + selector sources
+        visible_sources = list(selected_models)
+        if selected_selectors.get('single_selector', False):
+            visible_sources.extend([f"{judge} selections" for judge in selected_selector_models])
+        if selected_selectors.get('llms_ensemble', False):
+            visible_sources.append("Ensemble selection")
+
+        # Keep order and drop duplicates
+        visible_sources = list(dict.fromkeys(visible_sources))
+
+        # Add a trace for each source
+        for source_name in visible_sources:
+            model_data = grouped_data[grouped_data['model'] == source_name]
+
+            # Selector bars keep model color but use hatch patterns for visual differentiation.
+            is_single_selector_source = source_name.endswith(" selections")
+            is_ensemble_selector_source = source_name == "Ensemble selection"
+
+            if is_single_selector_source:
+                base_model = source_name.replace(" selections", "")
+                trace_color = model_colors.get(base_model, '#888888')
+                pattern_shape = '/'
+            elif is_ensemble_selector_source:
+                trace_color = selectors_colors.get('llms_ensemble', '#AB47BC')
+                pattern_shape = 'x'
+            else:
+                trace_color = model_colors.get(source_name, '#888888')
+                pattern_shape = ''
             
             # Ensure all metrics are represented (fill missing with None)
             plot_values = []
@@ -837,10 +960,13 @@ with columns[1]:
                     plot_values.append(None)
             
             fig.add_trace(go.Bar(
-                name=model,
+                name=source_name,
                 x=unique_metrics,
                 y=plot_values,
-                marker_color=model_colors.get(model, '#888888'),
+                marker=dict(
+                    color=trace_color,
+                    pattern=dict(shape=pattern_shape)
+                ),
                 text=[f"{v:.1f}%" if v is not None else "" for v in plot_values],
                 textposition='outside',
                 textfont=dict(size=10)
