@@ -2,6 +2,8 @@ import sys
 import json
 import argparse
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from langchain.schema.messages import HumanMessage
@@ -16,6 +18,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 from retrieve_database_info import get_schema_info, format_schema_info_for_prompt, get_queries, load_json_file
 
 models = ["deepseek-chat", "cogito_70b", "qwen2.5-coder_32b", "qwen3-coder_30b"]
+
+_FILE_WRITE_LOCK = threading.Lock()
 
 llm_prompt_binary_choice = """
 You are an expert SQL programmer. Given a natural language query, an evidence, the schema of the database, and one SQL candidate, determine if the candidate is correct and answer the natural language query.
@@ -207,11 +211,67 @@ def judge(database, query, query_id, schema_file, evidence, judge_arguments, mod
 
 def _atomic_dump_json(path: Path, payload: Dict[str, Any]) -> None:
     """Write JSON atomically to reduce risk of corrupted files on interruption."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-    tmp_path.replace(path)
+    with _FILE_WRITE_LOCK:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        tmp_path.replace(path)
+
+
+def _judge_single_row_job(
+    *,
+    judge_model: str,
+    llm,
+    schema_file: str,
+    candidate_model: str,
+    db_id: str,
+    question_id: int,
+    question: str,
+    evidence: str,
+    candidate_sql: str,
+    schema_info: Dict[str, Any],
+    gt_execution: Optional[Dict[str, Any]],
+    verbose: int,
+) -> Tuple[Dict[str, Any], bool]:
+    """Run one binary judgement job and return (result, is_error)."""
+    try:
+        judge_result = judge(
+            database=str(db_id),
+            query=question,
+            query_id=int(question_id),
+            schema_file=schema_file,
+            evidence=evidence,
+            judge_arguments={
+                "model": judge_model,
+                "llm": llm,
+                "candidate_model": candidate_model,
+                "candidate": candidate_sql,
+                "schema_info": schema_info,
+            },
+            mode="binary_choice",
+            verbose=verbose,
+        )
+
+        judge_result["question_id"] = int(question_id)
+        judge_result["db_id"] = str(db_id)
+        judge_result["candidate_model"] = candidate_model
+        judge_result["candidate_sql"] = candidate_sql
+        judge_result["execution_vs_ground_truth"] = gt_execution
+        return judge_result, False
+    except Exception as exc:
+        if verbose >= 0:
+            print(f"[batch] ERROR judging db={db_id} question_id={question_id}: {exc}")
+        error_result = {
+            "question_id": int(question_id),
+            "db_id": str(db_id),
+            "candidate_model": candidate_model,
+            "candidate_sql": candidate_sql,
+            "choice": "ERROR",
+            "Reasoning": str(exc),
+            "execution_vs_ground_truth": gt_execution,
+        }
+        return error_result, True
 
 
 def _build_pairwise_index(pairwise_payload: Dict[str, Any]) -> Dict[Tuple[str, int], Dict[str, Any]]:
@@ -268,6 +328,7 @@ def compute_binary_choices_for_sqls(
     pairwise_file: str = "all_pairwise_comparisons.json",
     resume: bool = True,
     save_every: int = 10,
+    num_threads: int = 1,
     stop_on_error: bool = False,
     verbose: int = 1,
 ) -> Dict[str, Any]:
@@ -298,6 +359,8 @@ def compute_binary_choices_for_sqls(
 
     if llm is None:
         raise ValueError("An instantiated llm must be provided, or initialize it before calling this function.")
+    if num_threads < 1:
+        raise ValueError("num_threads must be >= 1")
 
     sqls_path = _PROJECT_ROOT / sqls_dir
     output_path = _PROJECT_ROOT / output_dir
@@ -317,6 +380,7 @@ def compute_binary_choices_for_sqls(
         print(f"[batch] Starting binary choice evaluation — judge={judge_model}, database={database}")
         print(f"[batch] Found {len(sql_files)} model file(s) in '{sqls_dir}'")
         print(f"[batch] Loaded pairwise comparison index with {len(pairwise_index)} row(s) from '{pairwise_file}'")
+        print(f"[batch] Using num_threads={num_threads}")
     if verbose >= 2:
         print(f"[batch] schema_file={schema_file} | query_file={query_file}")
         print(f"[batch] output_dir={output_path}")
@@ -327,6 +391,7 @@ def compute_binary_choices_for_sqls(
         "schema_file": schema_file,
         "query_file": query_file,
         "pairwise_file": pairwise_file,
+        "num_threads": num_threads,
         "processed_models": {},
     }
 
@@ -377,6 +442,8 @@ def compute_binary_choices_for_sqls(
         errors_count = 0
         gt_metadata_found = 0
         gt_metadata_missing = 0
+
+        pending_jobs: List[Dict[str, Any]] = []
 
         for row in sql_rows:
             db_id = row.get("db_id")
@@ -468,60 +535,17 @@ def compute_binary_choices_for_sqls(
                     print(f"[batch] question : {query_meta['question']}")
                     print(f"[batch] evidence : {query_meta.get('evidence', '')}")
                     print(f"[batch] sql      : {candidate_sql}")
-                try:
-                    judge_result = judge(
-                        database=str(db_id),
-                        query=query_meta["question"],
-                        query_id=int(question_id),
-                        schema_file=schema_file,
-                        evidence=query_meta.get("evidence", ""),
-                        judge_arguments={
-                            "model": judge_model,
-                            "llm": llm,
-                            "candidate_model": candidate_model,
-                            "candidate": candidate_sql,
-                            "schema_info": per_db_schema_info[db_key],
-                        },
-                        mode="binary_choice",
-                        verbose=verbose,
-                    )
-
-                    judge_result["question_id"] = int(question_id)
-                    judge_result["db_id"] = str(db_id)
-                    judge_result["candidate_model"] = candidate_model
-                    judge_result["candidate_sql"] = candidate_sql
-                    judge_result["execution_vs_ground_truth"] = gt_execution
-                    results.append(judge_result)
-                    processed_keys.add(key)
-                    processed_since_save += 1
-                except Exception as exc:
-                    if verbose >= 0:
-                        print(f"[batch] ERROR judging db={db_id} question_id={question_id}: {exc}")
-                    error_result = {
-                        "question_id": int(question_id),
+                pending_jobs.append(
+                    {
                         "db_id": str(db_id),
-                        "candidate_model": candidate_model,
+                        "question_id": int(question_id),
+                        "question": query_meta["question"],
+                        "evidence": query_meta.get("evidence", ""),
                         "candidate_sql": candidate_sql,
-                        "choice": "ERROR",
-                        "Reasoning": str(exc),
-                        "execution_vs_ground_truth": gt_execution,
+                        "schema_info": per_db_schema_info[db_key],
+                        "gt_execution": gt_execution,
                     }
-                    results.append(error_result)
-                    processed_keys.add(key)
-                    processed_since_save += 1
-                    errors_count += 1
-                    if stop_on_error:
-                        payload = {
-                            "judge_model": judge_model,
-                            "candidate_model": candidate_model,
-                            "schema_file": schema_file,
-                            "query_file": query_file,
-                            "pairwise_file": pairwise_file,
-                            "total_sql_rows": len(sql_rows),
-                            "results": results,
-                        }
-                        _atomic_dump_json(output_file, payload)
-                        raise
+                )
 
             if processed_since_save >= save_every:
                 payload = {
@@ -537,6 +561,69 @@ def compute_binary_choices_for_sqls(
                 if verbose >= 1:
                     print(f"[batch] checkpoint saved — {len(results)}/{len(sql_rows)} done for model={candidate_model}")
                 processed_since_save = 0
+
+        if pending_jobs and verbose >= 1:
+            print(f"[batch] model={candidate_model} | dispatching {len(pending_jobs)} row(s) with {num_threads} thread(s)")
+
+        if pending_jobs:
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                futures = [
+                    executor.submit(
+                        _judge_single_row_job,
+                        judge_model=judge_model,
+                        llm=llm,
+                        schema_file=schema_file,
+                        candidate_model=candidate_model,
+                        db_id=job["db_id"],
+                        question_id=job["question_id"],
+                        question=job["question"],
+                        evidence=job["evidence"],
+                        candidate_sql=job["candidate_sql"],
+                        schema_info=job["schema_info"],
+                        gt_execution=job["gt_execution"],
+                        verbose=verbose,
+                    )
+                    for job in pending_jobs
+                ]
+
+                for future in as_completed(futures):
+                    row_result, is_error = future.result()
+                    results.append(row_result)
+                    processed_keys.add((str(row_result["db_id"]), int(row_result["question_id"])))
+                    processed_since_save += 1
+                    if is_error:
+                        errors_count += 1
+
+                    if stop_on_error and is_error:
+                        payload = {
+                            "judge_model": judge_model,
+                            "candidate_model": candidate_model,
+                            "schema_file": schema_file,
+                            "query_file": query_file,
+                            "pairwise_file": pairwise_file,
+                            "total_sql_rows": len(sql_rows),
+                            "results": results,
+                        }
+                        _atomic_dump_json(output_file, payload)
+                        raise RuntimeError(
+                            f"Stopping on first error for model={candidate_model} "
+                            f"db={row_result.get('db_id')} question_id={row_result.get('question_id')}"
+                        )
+
+                    if processed_since_save >= save_every:
+                        payload = {
+                            "judge_model": judge_model,
+                            "candidate_model": candidate_model,
+                            "schema_file": schema_file,
+                            "query_file": query_file,
+                            "pairwise_file": pairwise_file,
+                            "total_sql_rows": len(sql_rows),
+                            "results": results,
+                        }
+                        _atomic_dump_json(output_file, payload)
+                        if verbose >= 1:
+                            print(f"[batch] checkpoint saved — {len(results)}/{len(sql_rows)} done for model={candidate_model}")
+                        processed_since_save = 0
 
         payload = {
             "judge_model": judge_model,
@@ -571,10 +658,12 @@ def compute_binary_choices_for_sqls(
 
 if __name__ == "__main__":
     model = "deepseek-chat"
+    num_threads = 4
     llm = initialize_llm(model=model, api_key="sk-2675b255bc084d70b188e7fccd0aed15")
     summary = compute_binary_choices_for_sqls(
         judge_model=model,
         llm=llm,
+        num_threads=num_threads,
         verbose=1
     )
     print("Summary of binary choice judgments:")

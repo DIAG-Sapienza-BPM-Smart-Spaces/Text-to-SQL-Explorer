@@ -384,14 +384,14 @@ def main():
 	# One file for each single LLM judge.
 	for judge in models:
 		output = generate_judge_output(judge, query_index, combos)
-		output_path = f"choices/{judge.replace(' ', '_').lower()}_single_selector_choices.json"
+		output_path = f"fake_choices/{judge.replace(' ', '_').lower()}_single_selector_choices.json"
 		with open(output_path, "w", encoding="utf-8") as f:
 			json.dump(output, f, indent=2)
 		print(f"Saved {output_path}")
 
 	# One file for the ensemble of judges.
 	ensemble_output = generate_ensemble_output(query_index, combos)
-	ensemble_path = "choices/llms_ensemble_selector_choices.json"
+	ensemble_path = "fake_choices/llms_ensemble_selector_choices.json"
 	with open(ensemble_path, "w", encoding="utf-8") as f:
 		json.dump(ensemble_output, f, indent=2)
 	print(f"Saved {ensemble_path}")
