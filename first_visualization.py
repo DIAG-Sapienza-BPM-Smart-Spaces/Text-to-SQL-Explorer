@@ -219,7 +219,7 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
     Returns:
         DataFrame with columns: query_id, dataset, database, model, metric, agent, value
     """
-    if all_results.empty or active_queries.empty:
+    if active_queries.empty:
         return pd.DataFrame()
     
     # Get active query IDs using pandas Series
@@ -228,12 +228,14 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
     # Get selected metrics using pandas-friendly list comprehension
     selected_metric_keys = [m for m, selected in selected_metrics_dict.items() if selected]
     
-    # Use pandas boolean indexing with & instead of 'and'
-    active_results = all_results[
-        all_results['g_id'].isin(active_g_ids) & 
-        all_results['model'].isin(selected_models) & 
-        all_results['metric'].isin(selected_metric_keys)
-    ].copy()
+    # Start with candidate-model rows when available.
+    active_results = pd.DataFrame()
+    if not all_results.empty:
+        active_results = all_results[
+            all_results['g_id'].isin(active_g_ids) &
+            all_results['model'].isin(selected_models) &
+            all_results['metric'].isin(selected_metric_keys)
+        ].copy()
 
     # Build selector-derived metric rows if selector mode is active.
     if selected_selectors_dict is None:
@@ -253,7 +255,10 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
 
     if selector_rows:
         selector_df = pd.DataFrame(selector_rows)
-        active_results = pd.concat([active_results, selector_df], ignore_index=True)
+        if active_results.empty:
+            active_results = selector_df
+        else:
+            active_results = pd.concat([active_results, selector_df], ignore_index=True)
 
     return active_results
 
@@ -536,6 +541,18 @@ def get_query_ranges(queries_df):
                       int(queries_df['attributes'].max()) if 'attributes' in queries_df.columns else 30)
     }
 
+def normalize_slider_bounds(range_tuple):
+    """Return safe slider bounds for Streamlit range sliders.
+
+    Streamlit requires min_value < max_value. If a feature has a single
+    observed value (e.g., 0..0), expand the upper bound by 1 while keeping
+    the selected interval pinned to the original value.
+    """
+    low, high = int(range_tuple[0]), int(range_tuple[1])
+    if low >= high:
+        return low, low + 1, (low, low)
+    return low, high, (low, high)
+
 st.title("Demo Paper")
 
 columns = st.columns(2)
@@ -615,6 +632,8 @@ with columns[0]:
     
     # SECONDA SOTTO-COLONNA
     with sub_cols[1]:
+        all_four_models_selected = set(selected_models) == set(models)
+
         # Selezione Selettore
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Selettori</h3><span class="tooltip-text">Select way to select SQL candidates between selected models</span></div>', unsafe_allow_html=True)
@@ -622,6 +641,8 @@ with columns[0]:
             for selector in selectors:
                 css_class = get_selector_class(selector["key"])
                 selector_enabled = selector.get("enabled", True)
+                if selector["key"] == "single_selector":
+                    selector_enabled = selector_enabled and all_four_models_selected
                 selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
@@ -636,16 +657,24 @@ with columns[0]:
                     st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_selectors[selector["key"]] = checked
 
+            # Keep selector state consistent if user deselects one of the four candidate models.
+            if not all_four_models_selected and selected_selectors.get("single_selector", False):
+                selected_selectors["single_selector"] = False
+                st.session_state["selector_single_selector"] = False
+
+            if not all_four_models_selected:
+                st.caption("Select all 4 candidate models to enable the DeepSeek single-selector mode.")
+
         # Modelli da usare come giudici single-selector
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single LLM selectors</span></div>', unsafe_allow_html=True)
             single_selector_enabled = selected_selectors.get("single_selector", False)
             css_class = get_model_class("DeepSeek Chat")
+            st.session_state["selector_model_deepseek"] = single_selector_enabled
             col1, col2 = st.columns([0.1, 0.9])
             with col1:
                 st.checkbox(
                     "",
-                    value=single_selector_enabled,
                     key="selector_model_deepseek",
                     label_visibility="collapsed",
                     disabled=True
@@ -695,37 +724,42 @@ with columns[0]:
                           f"A:[{query_ranges['attributes'][0]}-{query_ranges['attributes'][1]}]")
             else:
                 st.info("ℹ️ Seleziona dataset e database per vedere le query disponibili")
+
+            complexity_min, complexity_max, complexity_default = normalize_slider_bounds(query_ranges['complexity'])
+            length_min, length_max, length_default = normalize_slider_bounds(query_ranges['length'])
+            tables_min, tables_max, tables_default = normalize_slider_bounds(query_ranges['tables'])
+            attributes_min, attributes_max, attributes_default = normalize_slider_bounds(query_ranges['attributes'])
             
             # Dynamic sliders based on available query ranges
             complexity_range = st.slider(
                 "Complessità", 
-                min_value=query_ranges['complexity'][0], 
-                max_value=query_ranges['complexity'][1], 
-                value=query_ranges['complexity'], 
+                min_value=complexity_min,
+                max_value=complexity_max,
+                value=complexity_default,
                 key="complexity_slider",
                 help="Filtra per complessità della query (0=semplice, 3=complessa)"
             )
             length_range = st.slider(
                 "Lunghezza", 
-                min_value=query_ranges['length'][0], 
-                max_value=query_ranges['length'][1], 
-                value=query_ranges['length'], 
+                min_value=length_min,
+                max_value=length_max,
+                value=length_default,
                 key="length_slider",
                 help="Filtra per lunghezza del testo della query"
             )
             tables_range = st.slider(
                 "Tabelle Coinvolte", 
-                min_value=query_ranges['tables'][0], 
-                max_value=query_ranges['tables'][1], 
-                value=query_ranges['tables'], 
+                min_value=tables_min,
+                max_value=tables_max,
+                value=tables_default,
                 key="tables_slider",
                 help="Filtra per numero di tabelle coinvolte nella query"
             )
             attributes_range = st.slider(
                 "Attributi Coinvolti", 
-                min_value=query_ranges['attributes'][0], 
-                max_value=query_ranges['attributes'][1], 
-                value=query_ranges['attributes'], 
+                min_value=attributes_min,
+                max_value=attributes_max,
+                value=attributes_default,
                 key="attributes_slider",
                 help="Filtra per numero di attributi/colonne coinvolte"
             )
