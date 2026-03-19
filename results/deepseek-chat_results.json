@@ -1,5 +1,5 @@
 {
-  "model": "Claude",
+  "model": "Deepseek-Chat",
   "datasets": {
     "BIRD Training": [
       {

@@ -4,14 +4,14 @@ import os
 from datetime import datetime, timezone
 from itertools import combinations
 
-models = ["Claude", "GPT", "Cogito 70b", "Llama 70b"]
+models = ["Deepseek-Chat", "Qwen2.5 Coder 32B", "Qwen3 Coder 30B", "Cogito 70b"]
 
 # Map model names to existing fake result files.
 RESULT_FILES = {
-	"Claude": "results/claude_results.json",
-	"GPT": "results/gpt_results.json",
+	"Deepseek-Chat": "results/deepseek-chat_results.json",
+	"Qwen2.5 Coder 32B": "results/qwen2.5_coder_32b_results.json",
+	"Qwen3 Coder 30B": "results/qwen3_coder_30b_results.json",
 	"Cogito 70b": "results/cogito_70b_results.json",
-	"Llama 70b": "results/llama_70b_results.json",
 }
 
 

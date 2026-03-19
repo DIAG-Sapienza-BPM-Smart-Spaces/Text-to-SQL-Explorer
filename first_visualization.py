@@ -4,29 +4,38 @@ import os
 import pandas as pd
 import hashlib
 
-models = ["Claude", "GPT", "Cogito 70b", "Llama 70b"]
+models = ["DeepSeek Chat", "Qwen2.5 Coder 32B", "Qwen3 Coder 30B", "Cogito 70b"]
 datasets = ["BIRD Training", "BIRD Developer", "SPIDER"]
-databases = {
-    "BIRD Training": ["Human Resources", "Football team", "Chicago Crimes"],
-    "BIRD Developer": ["European Schools", "Soccer teams", "Altro database"],
-    "SPIDER": ["Database 1", "Database 2", "Database 3"]
+
+MODEL_TO_SYSTEM_ID = {
+    "DeepSeek Chat": "deepseek-chat",
+    "Qwen2.5 Coder 32B": "qwen2.5-coder_32b",
+    "Qwen3 Coder 30B": "qwen3-coder_30b",
+    "Cogito 70b": "cogito_70b",
 }
+SYSTEM_ID_TO_MODEL = {v: k for k, v in MODEL_TO_SYSTEM_ID.items()}
 
-def compute_all_agents(models):
-    #compute all combinations of agents for Ensemble metric
-    from itertools import combinations
-    all_agents = []
-    for r in range(1, len(models) + 1):
-        for combo in combinations(models, r):
-            all_agents.append(" + ".join(combo))
-    return all_agents
+PAIRWISE_METRICS = [
+    "schema_precision",
+    "schema_recall",
+    "cell_value_accuracy",
+    "row_set_jaccard",
+    "execution_accuracy",
+    "f1_score",
+]
 
-agents = compute_all_agents(models)
+SELECTOR_SOURCE_LABEL = "DeepSeek selector (GT)"
+
+DATASET_FLAGS = {
+    "BIRD Training": False,
+    "BIRD Developer": True,
+    "SPIDER": False,
+}
 
 # Load query datasets
 @st.cache_data
 def load_queries():
-    """Load all query datasets from JSON files"""
+    """Load query datasets from JSON files with BIRD Developer aligned to real dev.json IDs."""
     queries_list = []
     
     try:
@@ -36,9 +45,23 @@ def load_queries():
             q_data['dataset'] = 'BIRD Training'
             queries_list.append(q_data)
         
-        # Load BIRD Developer queries
-        with open('datasets/bird_developer_queries.json', 'r', encoding='utf-8') as f:
-            q_data_developer = pd.DataFrame(json.load(f))
+        # Load BIRD Developer queries from real benchmark source
+        with open('dev.json', 'r', encoding='utf-8') as f:
+            raw_dev = pd.DataFrame(json.load(f))
+            difficulty_map = {
+                'simple': 0,
+                'moderate': 1,
+                'challenging': 2,
+            }
+            q_data_developer = pd.DataFrame({
+                'id': raw_dev['question_id'],
+                'query': raw_dev['question'],
+                'database': raw_dev['db_id'],
+                'complexity': raw_dev['difficulty'].map(difficulty_map).fillna(0).astype(int),
+                'length': 0,
+                'tables': 0,
+                'attributes': 0,
+            })
             q_data_developer['dataset'] = 'BIRD Developer'
             queries_list.append(q_data_developer)
         
@@ -57,62 +80,61 @@ def load_queries():
 
 # Load queries on app start
 all_queries = load_queries()
+databases = {
+    dataset_name: sorted(
+        all_queries[all_queries['dataset'] == dataset_name]['database'].dropna().unique().tolist()
+    )
+    for dataset_name in datasets
+}
 
 # Load model results
 @st.cache_data
 def load_model_results():
-    """Load all model performance results from JSON files and flatten nested structure"""
+    """Load model-vs-ground-truth pairwise metrics for all candidate models."""
     all_rows = []
-    
-    # Metric name mapping
-    metric_mapping = {
-        "Execution Accuracy": "exec_acc",
-        "Exact Match": "exact_match"
-    }
+    seen = set()
     
     try:
-        # Load individual model results
-        for model in models:
-            lower_model = model.lower().replace(" ", "_")
-            with open(f'results/{lower_model}_results.json', 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
-                
-                # Iterate through datasets
-                for dataset_name, queries in json_data.get('datasets', {}).items():
-                    # Iterate through queries in this dataset
-                    for query_data in queries:
-                        query_id = query_data['id']
-                        database = query_data['database']
-                        
-                        # Iterate through metrics for this query
-                        for metric_name, metric_value in query_data.get('metrics', {}).items():
-                            metric_key = metric_mapping.get(metric_name, metric_name)
-                            
-                            # Handle simple metrics (exec_acc, exact_match)
-                            if isinstance(metric_value, (int, float)):
-                                all_rows.append({
-                                    'dataset': dataset_name,
-                                    'database': database,
-                                    'id': query_id,
-                                    'model': model,
-                                    'metric': metric_key,
-                                    'value': metric_value
-                                })
-                            # Handle complex metrics (TDEX, Ensemble, Judge) - nested dicts
-                            elif isinstance(metric_value, dict):
-                                # For now, we'll store the main model's value
-                                # You can extend this to handle ensemble combinations
-                                agents = metric_value.keys()
-                                for agent in agents:
-                                    all_rows.append({
-                                        'dataset': dataset_name,
-                                        'database': database,
-                                        'id': query_id,
-                                        'model': model,
-                                        'metric': metric_key,
-                                        'agent': agent,
-                                        'value': metric_value[agent]
-                                    })
+        with open('all_pairwise_comparisons.json', 'r', encoding='utf-8') as f:
+            json_data = json.load(f)
+
+        for query_data in json_data.values():
+            query_id = query_data.get('question_id')
+            database = query_data.get('db_id')
+
+            for comparison in query_data.get('comparisons', {}).values():
+                system1 = comparison.get('system1')
+                system2 = comparison.get('system2')
+
+                if system1 == 'ground_truth' and system2 in SYSTEM_ID_TO_MODEL:
+                    model_name = SYSTEM_ID_TO_MODEL[system2]
+                elif system2 == 'ground_truth' and system1 in SYSTEM_ID_TO_MODEL:
+                    model_name = SYSTEM_ID_TO_MODEL[system1]
+                else:
+                    continue
+
+                for metric_key in PAIRWISE_METRICS:
+                    metric_value = comparison.get(metric_key)
+                    if not isinstance(metric_value, (int, float)):
+                        continue
+
+                    # Pairwise metrics are in [0,1], normalize to percentage scale for chart consistency.
+                    if metric_value <= 1.0:
+                        metric_value *= 100.0
+
+                    dedup_key = (query_id, database, model_name, metric_key)
+                    if dedup_key in seen:
+                        continue
+                    seen.add(dedup_key)
+
+                    all_rows.append({
+                        'dataset': 'BIRD Developer',
+                        'database': database,
+                        'id': query_id,
+                        'model': model_name,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    })
         
         # Create DataFrame from all rows
         results_data = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
@@ -124,56 +146,41 @@ def load_model_results():
         st.error(f"Error parsing results files: {e}")
         return pd.DataFrame()
 
-# Load results on app start
-all_results = load_model_results()
-
-
-def model_to_file_stem(model_name):
-    """Convert model display name to the file stem used in generated files."""
-    return model_name.replace(" ", "_").lower()
-
-
-def build_selector_choice_index(payload):
-    """Index selector choices by dataset and (query id, database) for fast lookup."""
-    index = {}
-    for dataset_name, rows in payload.get('datasets', {}).items():
-        by_query = {}
-        for row in rows:
-            key = (row.get('id'), row.get('database'))
-            by_query[key] = row.get('choices', {})
-        index[dataset_name] = by_query
-    return index
-
 
 @st.cache_data
-def load_selector_choices():
-    """Load generated selector choices (single judges + ensemble)."""
-    selector_data = {
-        'single_selector': {},
-        'llms_ensemble': None
-    }
+def load_selector_ground_truth_results():
+    """Load precomputed DeepSeek selector performance metrics against ground truth."""
+    file_path = 'selectors/deepseek-chat_selector_performance_vs_ground_truth.json'
+    if not os.path.exists(file_path):
+        return pd.DataFrame()
 
-    # Single-judge selector files
-    for judge in models:
-        stem = model_to_file_stem(judge)
-        file_path = f'choices/{stem}_single_selector_choices.json'
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                payload = json.load(f)
-            selector_data['single_selector'][judge] = build_selector_choice_index(payload)
+    rows = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
 
-    # Ensemble selector file
-    ensemble_path = 'choices/llms_ensemble_selector_choices.json'
-    if os.path.exists(ensemble_path):
-        with open(ensemble_path, 'r', encoding='utf-8') as f:
-            payload = json.load(f)
-        selector_data['llms_ensemble'] = build_selector_choice_index(payload)
+    for row in payload.get('per_query', []):
+        query_id = row.get('question_id')
+        database = row.get('db_id')
+        for metric_key in PAIRWISE_METRICS:
+            metric_value = row.get(metric_key)
+            if not isinstance(metric_value, (int, float)):
+                continue
+            if metric_value <= 1.0:
+                metric_value *= 100.0
+            rows.append({
+                'dataset': 'BIRD Developer',
+                'database': database,
+                'id': query_id,
+                'model': SELECTOR_SOURCE_LABEL,
+                'metric': metric_key,
+                'value': metric_value,
+            })
 
-    return selector_data
+    return pd.DataFrame(rows)
 
-
-# Load selector choices on app start
-all_selector_choices = load_selector_choices()
+# Load results on app start
+all_results = load_model_results()
+all_selector_results = load_selector_ground_truth_results()
 
 def string_to_deterministic_int(s):
     """Convert a string to a deterministic integer using SHA256 hash.
@@ -192,8 +199,14 @@ if not all_results.empty:
     all_results['g_id'] = (all_results['dataset'].astype(str) + '|' + 
                            all_results['database'].astype(str) + '|' + 
                            all_results['id'].astype(str)).apply(string_to_deterministic_int)
+if not all_selector_results.empty:
+    all_selector_results['g_id'] = (
+        all_selector_results['dataset'].astype(str) + '|' +
+        all_selector_results['database'].astype(str) + '|' +
+        all_selector_results['id'].astype(str)
+    ).apply(string_to_deterministic_int)
 
-def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None, selector_models=None):
+def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None):
     """
     Collect all relevant results for active queries based on selections.
     
@@ -202,7 +215,6 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         selected_models: List of selected candidate model names
         selected_metrics_dict: Dictionary of selected metrics {metric_key: bool}
         selected_selectors_dict: Dictionary of selected selectors {selector_key: bool}
-        selector_models: List of selected judge models for single-selector mode
     
     Returns:
         DataFrame with columns: query_id, dataset, database, model, metric, agent, value
@@ -223,89 +235,21 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         all_results['metric'].isin(selected_metric_keys)
     ].copy()
 
-    # Build selector-derived metric rows if selector mode is active and we have >=2 candidate models.
+    # Build selector-derived metric rows if selector mode is active.
     if selected_selectors_dict is None:
         selected_selectors_dict = {}
-    if selector_models is None:
-        selector_models = []
 
     selector_rows = []
-    if len(selected_models) >= 2 and selected_metric_keys:
-        combo_label = " + ".join(selected_models)
+    selector_enabled = selected_selectors_dict.get('single_selector', False)
+    all_four_selected = set(selected_models) == set(models)
 
-        # Build lookup for metric values: (g_id, model, metric) -> value
-        metric_lookup_df = all_results[
-            all_results['g_id'].isin(active_g_ids) &
-            all_results['metric'].isin(selected_metric_keys)
-        ][['g_id', 'model', 'metric', 'value']].copy()
-
-        metric_lookup = {
-            (row['g_id'], row['model'], row['metric']): row['value']
-            for _, row in metric_lookup_df.iterrows()
-        }
-
-        # Single selector rows (one bar source per selected judge model)
-        if selected_selectors_dict.get('single_selector', False):
-            for judge in selector_models:
-                judge_index = all_selector_choices.get('single_selector', {}).get(judge, {})
-                if not judge_index:
-                    continue
-
-                for _, query_row in active_queries.iterrows():
-                    dataset_name = query_row['dataset']
-                    query_key = (query_row['id'], query_row['database'])
-                    g_id = query_row['g_id']
-
-                    choices_map = judge_index.get(dataset_name, {}).get(query_key, {})
-                    chosen_candidate = choices_map.get(combo_label)
-                    if chosen_candidate is None:
-                        continue
-
-                    for metric_key in selected_metric_keys:
-                        value = metric_lookup.get((g_id, chosen_candidate, metric_key))
-                        if value is None:
-                            continue
-                        selector_rows.append({
-                            'dataset': dataset_name,
-                            'database': query_row['database'],
-                            'id': query_row['id'],
-                            'g_id': g_id,
-                            'model': f'{judge} selections',
-                            'metric': metric_key,
-                            'value': value,
-                            'selector_type': 'single_selector',
-                            'selected_candidate': chosen_candidate,
-                        })
-
-        # Ensemble selector rows (single additional bar source)
-        if selected_selectors_dict.get('llms_ensemble', False):
-            ensemble_index = all_selector_choices.get('llms_ensemble', {})
-            if ensemble_index:
-                for _, query_row in active_queries.iterrows():
-                    dataset_name = query_row['dataset']
-                    query_key = (query_row['id'], query_row['database'])
-                    g_id = query_row['g_id']
-
-                    choices_map = ensemble_index.get(dataset_name, {}).get(query_key, {})
-                    chosen_candidate = choices_map.get(combo_label)
-                    if chosen_candidate is None:
-                        continue
-
-                    for metric_key in selected_metric_keys:
-                        value = metric_lookup.get((g_id, chosen_candidate, metric_key))
-                        if value is None:
-                            continue
-                        selector_rows.append({
-                            'dataset': dataset_name,
-                            'database': query_row['database'],
-                            'id': query_row['id'],
-                            'g_id': g_id,
-                            'model': 'Ensemble selection',
-                            'metric': metric_key,
-                            'value': value,
-                            'selector_type': 'llms_ensemble',
-                            'selected_candidate': chosen_candidate,
-                        })
+    if selector_enabled and all_four_selected and selected_metric_keys and not all_selector_results.empty:
+        selector_df = all_selector_results[
+            all_selector_results['g_id'].isin(active_g_ids) &
+            all_selector_results['metric'].isin(selected_metric_keys)
+        ].copy()
+        if not selector_df.empty:
+            selector_rows = selector_df.to_dict(orient='records')
 
     if selector_rows:
         selector_df = pd.DataFrame(selector_rows)
@@ -315,21 +259,25 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
 
 
 metrics = [
-    {"name": "Execution Accuracy", "key": "exec_acc", "default": False, "tooltip": "Measures if the generated SQL query executes without errors and produces correct results"},
-    {"name": "Exact Match", "key": "exact_match", "default": False, "tooltip": "Checks if the generated SQL exactly matches the reference query"}
+    {"name": "Schema Precision", "key": "schema_precision", "default": True, "tooltip": "Precision on schema elements used by predicted SQL vs ground truth."},
+    {"name": "Schema Recall", "key": "schema_recall", "default": True, "tooltip": "Recall on schema elements used by predicted SQL vs ground truth."},
+    {"name": "Cell Value Accuracy", "key": "cell_value_accuracy", "default": True, "tooltip": "Correctness of result cell values against ground truth output."},
+    {"name": "Row Set Jaccard", "key": "row_set_jaccard", "default": True, "tooltip": "Overlap between predicted and ground-truth result rows."},
+    {"name": "Execution Accuracy", "key": "execution_accuracy", "default": True, "tooltip": "Execution-level correctness compared with ground truth."},
+    {"name": "F1 Score", "key": "f1_score", "default": True, "tooltip": "Harmonic mean balancing precision and recall for result correctness."},
 ]
 
 selectors = [
-    {"name": "Single LLm Selector", "key": "single_selector", "default": False, "tooltip": "Select the best SQL candidate based on a single LLM's evaluation"},
-    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "tooltip": "Select the best SQL candidate based on an ensemble of multiple LLMs' evaluations"}
+    {"name": "Single LLM Selector (DeepSeek)", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Prototype mode: plots DeepSeek selector precomputed metrics against ground truth."},
+    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "enabled": False, "tooltip": "Disabled in prototype: no real datapoints available yet."}
 ]
 
 # Color definitions - organized by color families
 model_colors = {
-    "Claude": "#2E5EAA",  # Deep blue
-    "GPT": "#4A90E2",  # Medium blue
-    "Cogito 70b": "#7CB3E9",  # Light blue
-    "Llama 70b": "#A8D0F0"  # Very light blue
+    "DeepSeek Chat": "#246BCE",
+    "Qwen2.5 Coder 32B": "#1C9A79",
+    "Qwen3 Coder 30B": "#F39C12",
+    "Cogito 70b": "#C0392B"
 }
 
 dataset_colors = {
@@ -339,8 +287,12 @@ dataset_colors = {
 }
 
 metric_colors = {
-    "exec_acc": "#2E7D32",  # Dark green
-    "exact_match": "#66BB6A",  # Light green
+    "schema_precision": "#0F4C81",
+    "schema_recall": "#2E86AB",
+    "cell_value_accuracy": "#00A878",
+    "row_set_jaccard": "#F18F01",
+    "execution_accuracy": "#D1495B",
+    "f1_score": "#6C5CE7",
 }
 
 selectors_colors = {
@@ -354,10 +306,10 @@ st.set_page_config(layout="wide")
 st.markdown("""
 <style>
 /* Model colors - Blue family */
-.color-claude { color: #2E5EAA !important; }
-.color-gpt { color: #4A90E2 !important; }
-.color-cogito { color: #7CB3E9 !important; }
-.color-llama { color: #A8D0F0 !important; }
+.color-deepseek { color: #246BCE !important; }
+.color-qwen25 { color: #1C9A79 !important; }
+.color-qwen3 { color: #F39C12 !important; }
+.color-cogito { color: #C0392B !important; }
 
 /* Dataset colors - Orange family */
 .color-bird-training { color: #E85D04 !important; }
@@ -365,8 +317,12 @@ st.markdown("""
 .color-spider { color: #FFBB66 !important; }
 
 /* Metric colors - Green family */
-.color-exec-acc { color: #2E7D32 !important; }
-.color-exact-match { color: #66BB6A !important; }
+.color-schema-precision { color: #0F4C81 !important; }
+.color-schema-recall { color: #2E86AB !important; }
+.color-cell-value-accuracy { color: #00A878 !important; }
+.color-row-set-jaccard { color: #F18F01 !important; }
+.color-execution-accuracy { color: #D1495B !important; }
+.color-f1-score { color: #6C5CE7 !important; }
             
 /* Selector colors Grey/Purple family */
 .color-single-selector { color: #6A1B9A !important; }
@@ -432,10 +388,10 @@ st.markdown("""
 # Helper functions to get CSS class names
 def get_model_class(model_name):
     class_map = {
-        "Claude": "color-claude",
-        "GPT": "color-gpt",
+        "DeepSeek Chat": "color-deepseek",
+        "Qwen2.5 Coder 32B": "color-qwen25",
+        "Qwen3 Coder 30B": "color-qwen3",
         "Cogito 70b": "color-cogito",
-        "Llama 70b": "color-llama"
     }
     return class_map.get(model_name, "")
 
@@ -457,8 +413,12 @@ def get_dataset_bg_class(dataset_name):
 
 def get_metric_class(metric_key):
     class_map = {
-        "exec_acc": "color-exec-acc",
-        "exact_match": "color-exact-match"
+        "schema_precision": "color-schema-precision",
+        "schema_recall": "color-schema-recall",
+        "cell_value_accuracy": "color-cell-value-accuracy",
+        "row_set_jaccard": "color-row-set-jaccard",
+        "execution_accuracy": "color-execution-accuracy",
+        "f1_score": "color-f1-score",
     }
     return class_map.get(metric_key, "")
 
@@ -625,13 +585,16 @@ with columns[0]:
             selected_datasets = []
             for i, dataset in enumerate(datasets):
                 css_class = get_dataset_class(dataset)
+                dataset_enabled = DATASET_FLAGS.get(dataset, True)
+                dataset_label = dataset if dataset_enabled else f"{dataset} (disabled in prototype)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
-                    checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed")
+                    checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
                 with col2:
-                    st.markdown(f'<p class="{css_class} text-item">{dataset}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="{css_class} text-item">{dataset_label}</p>', unsafe_allow_html=True)
                 if checked:
                     selected_datasets.append(dataset)
+            st.caption("Prototype flag: only BIRD Developer has real pairwise datapoints right now.")
         
         # Selezione Database (parte 1) - Dinamica basata sui dataset selezionati
         if len(selected_datasets) > 0 and selected_datasets[0] in databases:
@@ -658,36 +621,40 @@ with columns[0]:
             selected_selectors = {}
             for selector in selectors:
                 css_class = get_selector_class(selector["key"])
+                selector_enabled = selector.get("enabled", True)
+                selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
-                    checked = st.checkbox("", value=selector["default"], key=f"selector_{selector['key']}", label_visibility="collapsed")
+                    checked = st.checkbox(
+                        "",
+                        value=selector["default"],
+                        key=f"selector_{selector['key']}",
+                        label_visibility="collapsed",
+                        disabled=not selector_enabled
+                    )
                 with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector["name"]}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_selectors[selector["key"]] = checked
 
         # Modelli da usare come giudici single-selector
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single LLM selectors</span></div>', unsafe_allow_html=True)
-            selected_selector_models = []
             single_selector_enabled = selected_selectors.get("single_selector", False)
-            for i, model in enumerate(models):
-                css_class = get_model_class(model)
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox(
-                        "",
-                        value=False,
-                        key=f"selector_model_{i}",
-                        label_visibility="collapsed",
-                        disabled=not single_selector_enabled
-                    )
-                with col2:
-                    st.markdown(f'<p class="{css_class} text-item">{model}</p>', unsafe_allow_html=True)
-                if checked and single_selector_enabled:
-                    selected_selector_models.append(model)
+            css_class = get_model_class("DeepSeek Chat")
+            col1, col2 = st.columns([0.1, 0.9])
+            with col1:
+                st.checkbox(
+                    "",
+                    value=single_selector_enabled,
+                    key="selector_model_deepseek",
+                    label_visibility="collapsed",
+                    disabled=True
+                )
+            with col2:
+                st.markdown(f'<p class="{css_class} text-item">DeepSeek Chat only</p>', unsafe_allow_html=True)
 
-            if single_selector_enabled and not selected_selector_models:
-                st.caption("Select at least one selector model to display single-selector bars.")
+            if single_selector_enabled:
+                st.warning("Prototype flag: DeepSeek selector bars are available only when all four candidate models are selected.")
 
         # Selezione Database (parte 2) - Dinamica basata sui dataset selezionati
         if len(selected_datasets) > 1 and selected_datasets[1] in databases:
@@ -828,7 +795,6 @@ with columns[0]:
                 selected_models,
                 selected_metrics,
                 selected_selectors_dict=selected_selectors,
-                selector_models=selected_selector_models
             )
             
             # Store active results in session state
@@ -894,20 +860,14 @@ with columns[1]:
         def create_metric_label(row):
             """Create a display label for the metric, including agent info if present"""
             metric_names = {
-                "exec_acc": "Execution Accuracy",
-                "exact_match": "Exact Match",
-                "tdex": "TDEX",
-                "llms_ensemble": "LLMs Ensemble",
-                "llm_judge": "LLM as Judge"
+                "schema_precision": "Schema Precision",
+                "schema_recall": "Schema Recall",
+                "cell_value_accuracy": "Cell Value Accuracy",
+                "row_set_jaccard": "Row Set Jaccard",
+                "execution_accuracy": "Execution Accuracy",
+                "f1_score": "F1 Score",
             }
             metric_display = metric_names.get(row['metric'], row['metric'])
-            
-            # Add agent info for complex metrics
-            if (
-                'agent' in row and pd.notna(row['agent']) and
-                row['metric'] in ['tdex', 'llms_ensemble', 'llm_judge']
-            ):
-                return f"{metric_display} ({row['agent']})"
             return metric_display
         
         results_df['metric_label'] = results_df.apply(create_metric_label, axis=1)
@@ -923,10 +883,8 @@ with columns[1]:
         
         # Build visible sources: selected candidate models + selector sources
         visible_sources = list(selected_models)
-        if selected_selectors.get('single_selector', False):
-            visible_sources.extend([f"{judge} selections" for judge in selected_selector_models])
-        if selected_selectors.get('llms_ensemble', False):
-            visible_sources.append("Ensemble selection")
+        if selected_selectors.get('single_selector', False) and set(selected_models) == set(models):
+            visible_sources.append(SELECTOR_SOURCE_LABEL)
 
         # Keep order and drop duplicates
         visible_sources = list(dict.fromkeys(visible_sources))
@@ -935,17 +893,12 @@ with columns[1]:
         for source_name in visible_sources:
             model_data = grouped_data[grouped_data['model'] == source_name]
 
-            # Selector bars keep model color but use hatch patterns for visual differentiation.
-            is_single_selector_source = source_name.endswith(" selections")
-            is_ensemble_selector_source = source_name == "Ensemble selection"
+            # Selector bar uses a dedicated color and hatch pattern in prototype mode.
+            is_selector_source = source_name == SELECTOR_SOURCE_LABEL
 
-            if is_single_selector_source:
-                base_model = source_name.replace(" selections", "")
-                trace_color = model_colors.get(base_model, '#888888')
+            if is_selector_source:
+                trace_color = selectors_colors.get('single_selector', '#6A1B9A')
                 pattern_shape = '/'
-            elif is_ensemble_selector_source:
-                trace_color = selectors_colors.get('llms_ensemble', '#AB47BC')
-                pattern_shape = 'x'
             else:
                 trace_color = model_colors.get(source_name, '#888888')
                 pattern_shape = ''
@@ -982,7 +935,7 @@ with columns[1]:
                 dtick=10
             ),
             legend=dict(
-                title="Models",
+                title="Sources",
                 orientation="v",
                 yanchor="top",
                 y=1,

@@ -15,10 +15,10 @@ datasets = {
 
 # Model performance averages
 model_performance = {
-    "Claude": (80, 85),      # avg 82.5%
-    "GPT": (75, 80),         # avg 77.5%
-    "Cogito 70b": (70, 75),  # avg 72.5%
-    "Llama 70b": (65, 70)    # avg 67.5%
+    "Deepseek-Chat": (80, 85),      # avg 82.5%
+    "Qwen2.5 Coder 32B": (75, 80),         # avg 77.5%
+    "Qwen3 Coder 30B": (70, 75),  # avg 72.5%
+    "Cogito 70b": (65, 70)    # avg 67.5%
 }
 
 models = list(model_performance.keys())

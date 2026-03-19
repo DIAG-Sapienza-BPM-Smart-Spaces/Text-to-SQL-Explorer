@@ -373,11 +373,23 @@ def render_performance_panel(sample: Dict[str, Any]) -> None:
 			st.info("No execution-vs-ground-truth metrics available for this sample.")
 			return
 
-		metric_cols = st.columns(4)
-		metric_cols[0].metric("Precision", fmt_float(perf.get("precision")))
-		metric_cols[1].metric("Recall", fmt_float(perf.get("recall")))
-		metric_cols[2].metric("Cell Accuracy", fmt_float(perf.get("acc_cell")))
-		metric_cols[3].metric("Row Accuracy", fmt_float(perf.get("acc_row")))
+		# Prefer current metric names from pairwise comparisons; keep fallbacks for older files.
+		schema_precision = perf.get("schema_precision", perf.get("precision"))
+		schema_recall = perf.get("schema_recall", perf.get("recall"))
+		cell_value_accuracy = perf.get("cell_value_accuracy", perf.get("acc_cell"))
+		row_set_jaccard = perf.get("row_set_jaccard", perf.get("acc_row"))
+		execution_accuracy = perf.get("execution_accuracy")
+		f1_score = perf.get("f1_score")
+
+		metric_cols_top = st.columns(3)
+		metric_cols_top[0].metric("Schema Precision", fmt_float(schema_precision))
+		metric_cols_top[1].metric("Schema Recall", fmt_float(schema_recall))
+		metric_cols_top[2].metric("Cell Value Accuracy", fmt_float(cell_value_accuracy))
+
+		metric_cols_bottom = st.columns(3)
+		metric_cols_bottom[0].metric("Row Set Jaccard", fmt_float(row_set_jaccard))
+		metric_cols_bottom[1].metric("Execution Accuracy", fmt_float(execution_accuracy))
+		metric_cols_bottom[2].metric("F1 Score", fmt_float(f1_score))
 
 		comparison_flag = perf.get("comparison_performed")
 		if comparison_flag is True:
