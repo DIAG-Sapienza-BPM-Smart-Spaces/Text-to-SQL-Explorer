@@ -25,6 +25,7 @@ PAIRWISE_METRICS = [
 ]
 
 SELECTOR_SOURCE_LABEL = "DeepSeek selector (GT)"
+EMBEDDING_SELECTOR_SOURCE_LABEL = "Embedding selector"
 
 DATASET_FLAGS = {
     "BIRD Training": False,
@@ -178,9 +179,52 @@ def load_selector_ground_truth_results():
 
     return pd.DataFrame(rows)
 
+
+@st.cache_data
+def load_embedding_selector_results():
+    """Load embedding selector performance metrics against ground truth."""
+    file_path = 'embedding_pipeline_selection_results.json'
+    if not os.path.exists(file_path):
+        return pd.DataFrame()
+
+    rows = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
+
+    if not isinstance(payload, list):
+        return pd.DataFrame()
+
+    for row in payload:
+        if not isinstance(row, dict):
+            continue
+
+        query_id = row.get('question_id')
+        database = row.get('db_id')
+        metrics = row.get('ground_truth_comparison_metrics') or {}
+
+        for metric_key in PAIRWISE_METRICS:
+            metric_value = metrics.get(metric_key)
+            if not isinstance(metric_value, (int, float)):
+                continue
+
+            if metric_value <= 1.0:
+                metric_value *= 100.0
+
+            rows.append({
+                'dataset': 'BIRD Developer',
+                'database': database,
+                'id': query_id,
+                'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
+                'metric': metric_key,
+                'value': metric_value,
+            })
+
+    return pd.DataFrame(rows)
+
 # Load results on app start
 all_results = load_model_results()
 all_selector_results = load_selector_ground_truth_results()
+all_embedding_selector_results = load_embedding_selector_results()
 
 def string_to_deterministic_int(s):
     """Convert a string to a deterministic integer using SHA256 hash.
@@ -204,6 +248,12 @@ if not all_selector_results.empty:
         all_selector_results['dataset'].astype(str) + '|' +
         all_selector_results['database'].astype(str) + '|' +
         all_selector_results['id'].astype(str)
+    ).apply(string_to_deterministic_int)
+if not all_embedding_selector_results.empty:
+    all_embedding_selector_results['g_id'] = (
+        all_embedding_selector_results['dataset'].astype(str) + '|' +
+        all_embedding_selector_results['database'].astype(str) + '|' +
+        all_embedding_selector_results['id'].astype(str)
     ).apply(string_to_deterministic_int)
 
 def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None):
@@ -243,6 +293,7 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
 
     selector_rows = []
     selector_enabled = selected_selectors_dict.get('single_selector', False)
+    embedding_selector_enabled = selected_selectors_dict.get('embedding_selector', False)
     all_four_selected = set(selected_models) == set(models)
 
     if selector_enabled and all_four_selected and selected_metric_keys and not all_selector_results.empty:
@@ -252,6 +303,14 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         ].copy()
         if not selector_df.empty:
             selector_rows = selector_df.to_dict(orient='records')
+
+    if embedding_selector_enabled and all_four_selected and selected_metric_keys and not all_embedding_selector_results.empty:
+        embedding_selector_df = all_embedding_selector_results[
+            all_embedding_selector_results['g_id'].isin(active_g_ids) &
+            all_embedding_selector_results['metric'].isin(selected_metric_keys)
+        ].copy()
+        if not embedding_selector_df.empty:
+            selector_rows.extend(embedding_selector_df.to_dict(orient='records'))
 
     if selector_rows:
         selector_df = pd.DataFrame(selector_rows)
@@ -274,6 +333,7 @@ metrics = [
 
 selectors = [
     {"name": "Single LLM Selector (DeepSeek)", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Prototype mode: plots DeepSeek selector precomputed metrics against ground truth."},
+    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding pipeline selector metrics from embedding_pipeline_selection_results.json."},
     {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "enabled": False, "tooltip": "Disabled in prototype: no real datapoints available yet."}
 ]
 
@@ -302,6 +362,7 @@ metric_colors = {
 
 selectors_colors = {
     "single_selector": "#6A1B9A",  # Purple
+    "embedding_selector": "#8E44AD",  # Violet
     "llms_ensemble": "#AB47BC"  # Light purple
 }
 
@@ -331,6 +392,7 @@ st.markdown("""
             
 /* Selector colors Grey/Purple family */
 .color-single-selector { color: #6A1B9A !important; }
+.color-embedding-selector { color: #8E44AD !important; }
 .color-llms-ensemble { color: #AB47BC !important; }
 
 /* Background colors for conditional boxes */
@@ -338,6 +400,7 @@ st.markdown("""
 .bg-bird-developer { background-color: rgba(255, 149, 0, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-spider { background-color: rgba(255, 187, 102, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-tdex { background-color: rgba(106, 27, 154, 0.15) !important; padding: 10px; border-radius: 5px; }
+.bg-embedding-selector { background-color: rgba(142, 68, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-llms-ensemble { background-color: rgba(171, 71, 188, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-llm-judge { background-color: rgba(206, 147, 216, 0.15) !important; padding: 10px; border-radius: 5px; }
 
@@ -430,6 +493,7 @@ def get_metric_class(metric_key):
 def get_selector_class(selector_key):
     class_map = {
         "single_selector": "color-single-selector",
+        "embedding_selector": "color-embedding-selector",
         "llms_ensemble": "color-llms-ensemble"
     }
     return class_map.get(selector_key, "")
@@ -641,7 +705,7 @@ with columns[0]:
             for selector in selectors:
                 css_class = get_selector_class(selector["key"])
                 selector_enabled = selector.get("enabled", True)
-                if selector["key"] == "single_selector":
+                if selector["key"] in ("single_selector", "embedding_selector"):
                     selector_enabled = selector_enabled and all_four_models_selected
                 selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
@@ -661,9 +725,12 @@ with columns[0]:
             if not all_four_models_selected and selected_selectors.get("single_selector", False):
                 selected_selectors["single_selector"] = False
                 st.session_state["selector_single_selector"] = False
+            if not all_four_models_selected and selected_selectors.get("embedding_selector", False):
+                selected_selectors["embedding_selector"] = False
+                st.session_state["selector_embedding_selector"] = False
 
             if not all_four_models_selected:
-                st.caption("Select all 4 candidate models to enable the DeepSeek single-selector mode.")
+                st.caption("Select all 4 candidate models to enable selector modes (DeepSeek single-selector and embedding selector).")
 
         # Modelli da usare come giudici single-selector
         with st.container(border=True):
@@ -919,6 +986,8 @@ with columns[1]:
         visible_sources = list(selected_models)
         if selected_selectors.get('single_selector', False) and set(selected_models) == set(models):
             visible_sources.append(SELECTOR_SOURCE_LABEL)
+        if selected_selectors.get('embedding_selector', False) and set(selected_models) == set(models):
+            visible_sources.append(EMBEDDING_SELECTOR_SOURCE_LABEL)
 
         # Keep order and drop duplicates
         visible_sources = list(dict.fromkeys(visible_sources))
@@ -931,7 +1000,10 @@ with columns[1]:
             is_selector_source = source_name == SELECTOR_SOURCE_LABEL
 
             if is_selector_source:
-                trace_color = selectors_colors.get('single_selector', '#6A1B9A')
+                if source_name == EMBEDDING_SELECTOR_SOURCE_LABEL:
+                    trace_color = selectors_colors.get('embedding_selector', '#8E44AD')
+                else:
+                    trace_color = selectors_colors.get('single_selector', '#6A1B9A')
                 pattern_shape = '/'
             else:
                 trace_color = model_colors.get(source_name, '#888888')

@@ -1,42 +1,45 @@
 from pathlib import Path
+from typing import Optional
+
+import numpy as np
 from sentence_transformers import SentenceTransformer
 import sqlglot
 from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
-import numpy as np
 
 EMBEDDER_ID = "s2593817/sft-sql-embedding"
 CACHE_DIR = Path(__file__).resolve().parent / ".hf_cache"
-_EMBEDDER = None
+_EMBEDDER: Optional[SentenceTransformer] = None
+
+
+def log_message(verbose: int, level: int, message: str) -> None:
+    """Print a message only when the active verbose level allows it."""
+    if verbose >= level:
+        print(message)
 
 
 def load_embedder(embedder_id: str = EMBEDDER_ID, verbose: int = 1) -> SentenceTransformer:
-	"""Load the embedder once and reuse it from memory."""
-	global _EMBEDDER
-	if _EMBEDDER is None:
-		if verbose >= 1:
-			print(f"[INFO] Loading embedder: {embedder_id}")
-		CACHE_DIR.mkdir(parents=True, exist_ok=True)
-		_EMBEDDER = SentenceTransformer(embedder_id, cache_folder=str(CACHE_DIR))
-		if verbose >= 1:
-			print(f"[INFO] Embedder loaded and cached at {CACHE_DIR}")
-	else:
-		if verbose >= 2:
-			print("[DEBUG] Using cached embedder")
-	return _EMBEDDER
+    """Load the embedder once and reuse it from memory."""
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        log_message(verbose, 1, f"[INFO] Loading embedder: {embedder_id}")
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _EMBEDDER = SentenceTransformer(embedder_id, cache_folder=str(CACHE_DIR))
+        log_message(verbose, 1, f"[INFO] Embedder loaded and cached at {CACHE_DIR}")
+    else:
+        log_message(verbose, 2, "[DEBUG] Using cached embedder")
+    return _EMBEDDER
 
-def parse_and_normalize_sql(sql: str) -> str:
+def parse_and_normalize_sql(sql: str, verbose: int = 0) -> str:
     """Parse and normalize SQL using sqlglot."""
     try:
-        #Parse to AST
         parsed = sqlglot.parse_one(sql)
-        # Normalize identifiers
         normalized = normalize_identifiers(parsed)
-        #return normalized AST as string
         return repr(normalized)
     except Exception as e:
-        print(f"Error parsing SQL: {e}")
-        return sql  # Return original SQL if parsing fails
-    
+        log_message(verbose, 2, f"[DEBUG] Error parsing SQL, using original text: {e}")
+        return sql
+
+
 def compute_cosine_similarity(vec1, vec2):
     """Compute cosine similarity between two vectors."""
     vec1 = np.array(vec1)
@@ -46,6 +49,7 @@ def compute_cosine_similarity(vec1, vec2):
     if norm1 == 0 or norm2 == 0:
         return 0.0
     return np.dot(vec1, vec2) / (norm1 * norm2)
+
 
 def compute_similarity_matrix(vectors):
     """Compute a similarity matrix for a list of vectors."""
@@ -58,39 +62,47 @@ def compute_similarity_matrix(vectors):
             similarity_matrix[j][i] = similarity  # Symmetric matrix
     return similarity_matrix
 
+
 def compute_average_and_std_of_similarities(similarity_matrix):
     """Compute the average and standard deviation of the upper triangle of the similarity matrix."""
     upper_triangle = similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)]
+    if upper_triangle.size == 0:
+        return 0.0, 0.0
     average_similarity = np.mean(upper_triangle)
     std_similarity = np.std(upper_triangle)
     return average_similarity, std_similarity
 
+
 def compute_similarity_groups(vectors, similarity_matrix, verbose: int = 1):
     """Group vectors based on a similarity threshold."""
-    threshold = compute_average_and_std_of_similarities(similarity_matrix)[0]  # Use average similarity as threshold
-    if verbose >= 1:
-        print(f"[INFO] Grouping vectors with threshold: {threshold:.4f}")
+    threshold = compute_average_and_std_of_similarities(similarity_matrix)[0]
+    log_message(verbose, 1, f"[INFO] Grouping vectors with threshold: {threshold:.4f}")
+
     num_vectors = len(vectors)
     groups = []
     visited = set()
-    
+
     for i in range(num_vectors):
         if i in visited:
             continue
-        group = [(i, vectors[i])]  # Start a new group with the current vector
+
+        group = [(i, vectors[i])]
         visited.add(i)
+
         for j in range(i + 1, num_vectors):
             if j not in visited and similarity_matrix[i][j] >= threshold:
                 group.append((j, vectors[j]))
                 visited.add(j)
+
         groups.append(group)
-    
+
     if verbose >= 2:
         print(f"[DEBUG] Created {len(groups)} groups")
         for idx, g in enumerate(groups):
             print(f"[DEBUG]   Group {idx}: {len(g)} vectors")
-    
+
     return groups
+
 
 def get_vector_closest_to_centroid(group):
     """Get the vector closest to the centroid of a group."""
@@ -103,47 +115,60 @@ def get_vector_closest_to_centroid(group):
         if distance < closest_distance:
             closest_distance = distance
             closest_vector = index
-            
+
     return closest_vector
 
+
 def sql_selection_trough_embedding_similarities(sql_queries, verbose: int = 1):
-    """Select SQL queries based on embedding similarities."""
-    if verbose >= 1:
-        print(f"[INFO] Processing {len(sql_queries)} SQL queries")
-    
+    """Select SQL queries based on embedding similarities and return stats."""
+    if not sql_queries:
+        raise ValueError("sql_queries must contain at least one query")
+
+    log_message(verbose, 1, f"[INFO] Processing {len(sql_queries)} SQL queries")
+
     embedder = load_embedder(verbose=verbose)
-    
+
     if verbose >= 2:
         print("[DEBUG] Parsing and encoding SQL queries...")
-    vectors = [embedder.encode(parse_and_normalize_sql(sql)) for sql in sql_queries]
+
+    vectors = [embedder.encode(parse_and_normalize_sql(sql, verbose=verbose)) for sql in sql_queries]
     if verbose >= 2:
         print(f"[DEBUG] Generated {len(vectors)} embeddings of dimension {len(vectors[0])}")
-    
+
     if verbose >= 2:
         print("[DEBUG] Computing similarity matrix...")
+
     similarity_matrix = compute_similarity_matrix(vectors)
+    avg_sim, std_sim = compute_average_and_std_of_similarities(similarity_matrix)
     if verbose >= 2:
-        avg_sim, std_sim = compute_average_and_std_of_similarities(similarity_matrix)
         print(f"[DEBUG] Similarity stats - mean: {avg_sim:.4f}, std: {std_sim:.4f}")
-    
+
     groups = compute_similarity_groups(vectors, similarity_matrix, verbose=verbose)
-    
-    #find the biggest group
     biggest_group = max(groups, key=len)
     if verbose >= 2:
         print(f"[DEBUG] Biggest group has {len(biggest_group)} vectors")
-    
+
     selected_vector = get_vector_closest_to_centroid(biggest_group)
     selected_sql = sql_queries[selected_vector]
-    
-    if verbose >= 1:
-        print(f"[INFO] Selected SQL (index {selected_vector}): {selected_sql}")
-    
-    return selected_sql
-    
+
+    selection_stats = {
+        "selected_index": int(selected_vector),
+        "num_candidates": len(sql_queries),
+        "num_clusters": len(groups),
+        "cluster_sizes": [len(group) for group in groups],
+        "biggest_cluster_size": len(biggest_group),
+        "similarity_mean": float(avg_sim),
+        "similarity_std": float(std_sim),
+    }
+
+    log_message(verbose, 1, f"[INFO] Selected SQL (index {selected_vector}): {selected_sql}")
+    if verbose >= 2:
+        print(f"[DEBUG] Selection stats: {selection_stats}")
+
+    return selected_sql, selection_stats
+
 
 if __name__ == "__main__":
-	
     sql_queries = [
         "SELECT name FROM users WHERE age > 30",
         "SELECT name FROM users WHERE age > 25",
@@ -151,6 +176,7 @@ if __name__ == "__main__":
         "SELECT name FROM users WHERE age > 35",
         "SELECT name FROM customers WHERE age > 25"
     ]
-    
+
     # Set verbose level: 0=silent, 1=steps (default), 2=all outputs
-    selected_sql = sql_selection_trough_embedding_similarities(sql_queries, verbose=2)
+    selected_sql, selection_stats = sql_selection_trough_embedding_similarities(sql_queries, verbose=2)
+    print(f"Selection statistics: {selection_stats}")
