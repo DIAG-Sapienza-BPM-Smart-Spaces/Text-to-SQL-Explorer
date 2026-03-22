@@ -767,8 +767,7 @@ metrics = [
 
 selectors = [
     {"name": "Single LLM Selector", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Plots single-selector metrics for the selected selector models."},
-    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."},
-    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "enabled": False, "tooltip": "Ensemble selector mode is currently not plotted in this chart."}
+    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."}
 ]
 
 # Color definitions - organized by color families
@@ -831,7 +830,6 @@ st.markdown("""
 /* Selector colors Grey/Purple family */
 .color-single-selector { color: #6A1B9A !important; }
 .color-embedding-selector { color: #8E44AD !important; }
-.color-llms-ensemble { color: #AB47BC !important; }
 
 /* Background colors for conditional boxes */
 .bg-bird-training { background-color: rgba(232, 93, 4, 0.15) !important; padding: 10px; border-radius: 5px; }
@@ -841,7 +839,6 @@ st.markdown("""
 .bg-spider-test { background-color: rgba(255, 217, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-tdex { background-color: rgba(106, 27, 154, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-embedding-selector { background-color: rgba(142, 68, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-llms-ensemble { background-color: rgba(171, 71, 188, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-llm-judge { background-color: rgba(206, 147, 216, 0.15) !important; padding: 10px; border-radius: 5px; }
 
 /* Utility */
@@ -937,8 +934,7 @@ def get_metric_class(metric_key):
 def get_selector_class(selector_key):
     class_map = {
         "single_selector": "color-single-selector",
-        "embedding_selector": "color-embedding-selector",
-        "llms_ensemble": "color-llms-ensemble"
+        "embedding_selector": "color-embedding-selector"
     }
     return class_map.get(selector_key, "")
 

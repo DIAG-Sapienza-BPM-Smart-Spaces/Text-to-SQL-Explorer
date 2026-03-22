@@ -1,7 +1,9 @@
 import json
+import os
 import re
 import sys
 import threading
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,7 +29,7 @@ from retrieve_database_info import (  # noqa: E402
 	load_json_file,
 )
 
-models = ["deepseek-chat", "cogito_70b", "qwen2.5-coder_32b", "qwen3-coder_30b"]
+SELECTOR_MODELS = ["deepseek-chat", "cogito_70b", "qwen2.5-coder_32b", "qwen3-coder_30b"]
 
 _FILE_WRITE_LOCK = threading.Lock()
 
@@ -118,7 +120,8 @@ Choices and reasoning of the other experts:
 ---
 {choices_and_reasoning}
 ---
-Your answer should be in the following format (either CANDIDATE 1, CANDIDATE 2, CANDIDATE 3, or CANDIDATE 4 as CHOICE):
+Your answer should be in the following format (either CANDIDATE 1, CANDIDATE 2, CANDIDATE 3, or CANDIDATE 4 as CHOICE). 
+It is crucial that you put exactly CANDIDATE 1, CANDIDATE 2, CANDIDATE 3, or CANDIDATE 4 as CHOICE, not sql code or any other text.
 ---
 <your reasoning>
 ``choice
@@ -186,6 +189,35 @@ def _normalize_candidate_choice(choice_raw: str) -> Optional[int]:
 	only_digit = re.fullmatch(r"\s*([1-4])\s*", upper)
 	if only_digit:
 		return int(only_digit.group(1))
+
+	return None
+
+
+def _normalize_sql_for_match(sql_text: str) -> str:
+	"""Normalize SQL text for robust textual matching across formatting variants."""
+	cleaned = (sql_text or "").strip()
+	cleaned = re.sub(r"```(?:sql)?", "", cleaned, flags=re.IGNORECASE)
+	cleaned = cleaned.replace("```", " ")
+	cleaned = re.sub(r"\s+", " ", cleaned)
+	return cleaned.strip().rstrip(";").strip().lower()
+
+
+def _match_candidate_from_sql_response(
+	response_content: str,
+	ordered_candidates: List[Tuple[str, str]],
+) -> Optional[int]:
+	"""Try to infer the chosen candidate by matching SQL present in the model answer."""
+	fenced_blocks = re.findall(r"```(?:sql)?\s*(.*?)```", response_content, flags=re.IGNORECASE | re.DOTALL)
+	search_spaces = [response_content] + fenced_blocks
+	normalized_spaces = [_normalize_sql_for_match(chunk) for chunk in search_spaces if chunk and chunk.strip()]
+
+	for idx, (_, candidate_sql) in enumerate(ordered_candidates, start=1):
+		norm_candidate = _normalize_sql_for_match(candidate_sql)
+		if not norm_candidate:
+			continue
+		for norm_space in normalized_spaces:
+			if norm_candidate == norm_space or norm_candidate in norm_space:
+				return idx
 
 	return None
 
@@ -264,6 +296,7 @@ def select_candidate_for_query(
 
 	response = llm.invoke([HumanMessage(content=prompt)])
 	response_content = response.content if hasattr(response, "content") else str(response)
+	original_answer = (response_content or "").strip()
 
 	if verbose >= 2:
 		print("[selector] --- LLM raw response ---")
@@ -276,6 +309,13 @@ def select_candidate_for_query(
 	selected_model = None
 	selected_sql = None
 	normalized_choice = "UNPARSEABLE"
+	used_sql_fallback = False
+
+	if selected_index is None:
+		matched_index = _match_candidate_from_sql_response(response_content, ordered_candidates)
+		if matched_index is not None:
+			selected_index = matched_index
+			used_sql_fallback = True
 
 	if selected_index is not None:
 		normalized_choice = f"CANDIDATE {selected_index}"
@@ -284,12 +324,13 @@ def select_candidate_for_query(
 	if verbose >= 1:
 		print(
 			f"[selector] selector={selector_model} | raw_choice='{choice_raw}' "
-			f"| normalized='{normalized_choice}'"
+			f"| normalized='{normalized_choice}' | sql_fallback={used_sql_fallback}"
 		)
 
 	return {
 		"Reasoning": reasoning,
 		"choice_raw": choice_raw,
+		"original_answer": original_answer,
 		"choice": normalized_choice,
 		"selected_candidate_index": selected_index,
 		"selected_candidate_model": selected_model,
@@ -350,6 +391,7 @@ def _select_single_row_job(
 			"evidence": evidence,
 			"choice": selection_result["choice"],
 			"choice_raw": selection_result["choice_raw"],
+			"original_answer": selection_result.get("original_answer"),
 			"Reasoning": selection_result["Reasoning"],
 			"selected_candidate_index": selection_result["selected_candidate_index"],
 			"selected_candidate_model": selected_model,
@@ -378,6 +420,7 @@ def _select_single_row_job(
 			"evidence": evidence,
 			"choice": "ERROR",
 			"choice_raw": "ERROR",
+			"original_answer": None,
 			"Reasoning": str(exc),
 			"selected_candidate_index": None,
 			"selected_candidate_model": None,
@@ -405,7 +448,7 @@ def compute_single_selector_choices(
 	query_file: str = None,
 	sqls_dir: str = "sqls",
 	pairwise_file: str = "all_pairwise_comparisons.json",
-	output_dir: str = "binary_choices",
+	output_dir: str = "selectors",
 	output_filename: Optional[str] = None,
 	resume: bool = True,
 	save_every: int = 10,
@@ -414,7 +457,8 @@ def compute_single_selector_choices(
 	verbose: int = 1,
 ) -> Dict[str, Any]:
 	"""
-	Run single-model selection over all queries and save one JSON file for the selector model.
+	Run single-model selection over all queries and choose one of four SQL candidates.
+	Save one JSON file for the selector model.
 	Also enrich each selected choice with ground-truth comparison metrics from pairwise_file.
 	"""
 	if llm is None:
@@ -535,6 +579,7 @@ def compute_single_selector_choices(
 				"evidence": query_meta.get("evidence", "") if query_meta else "",
 				"choice": "ERROR",
 				"choice_raw": "ERROR",
+				"original_answer": None,
 				"Reasoning": " ".join(reason_parts),
 				"selected_candidate_index": None,
 				"selected_candidate_model": selected_model,
@@ -681,23 +726,74 @@ def compute_single_selector_choices(
 	}
 
 
-if __name__ == "__main__":
-	selector_model = "deepseek-chat"
-	num_threads = 3
-	api_key = "sk-2675b255bc084d70b188e7fccd0aed15"
+def _resolve_api_key_for_model(selector_model: str) -> str:
+	"""Resolve API key from environment variables for a selector model."""
+	if selector_model == "deepseek-chat":
+		return os.getenv("DEEPSEEK_API_KEY", "sk-2675b255bc084d70b188e7fccd0aed15")
 
-	if selector_model == "deepseek-chat" and not api_key:
-		raise ValueError(
-			"Missing API key for deepseek-chat. Set api_key in __main__ before running."
+	# Optional generic fallback if additional providers are wired in initialize_llm.
+	return os.getenv("SELECTOR_API_KEY", "")
+
+
+def run_selector_batch_for_dataset(
+	selector_models: List[str],
+	dataset: str = "bird_developer",
+	num_threads: int = 3,
+	verbose: int = 1,
+) -> Dict[str, Any]:
+	"""Run selector inference for each selector model on the selected dataset."""
+	batch_summary: Dict[str, Any] = {
+		"dataset": dataset,
+		"runs": {},
+		"skipped": {},
+	}
+
+	for selector_model in selector_models:
+		api_key = _resolve_api_key_for_model(selector_model)
+		if not api_key:
+			message = (
+				f"Missing API key for selector model '{selector_model}'. "
+				"Set the required environment variable and retry."
+			)
+			batch_summary["skipped"][selector_model] = message
+			if verbose >= 0:
+				print(f"[main] SKIP {selector_model}: {message}")
+			continue
+
+		try:
+			llm = initialize_llm(model=selector_model, api_key=api_key, verbose=verbose)
+		except Exception as exc:
+			batch_summary["skipped"][selector_model] = str(exc)
+			if verbose >= 0:
+				print(f"[main] SKIP {selector_model}: {exc}")
+			continue
+
+		if verbose >= 0:
+			print(
+				f"[main] Running four-candidate selector for model='{selector_model}' "
+				f"on dataset='{dataset}'"
+			)
+
+		summary = compute_single_selector_choices(
+			selector_model=selector_model,
+			llm=llm,
+			database=dataset,
+			num_threads=num_threads,
+			verbose=verbose,
 		)
+		batch_summary["runs"][selector_model] = summary
 
-	llm = initialize_llm(model=selector_model, api_key=api_key, verbose=1)
-	summary = compute_single_selector_choices(
-		selector_model=selector_model,
-		llm=llm,
-		num_threads=num_threads,
+	return batch_summary
+
+
+if __name__ == "__main__":
+
+	summary = run_selector_batch_for_dataset(
+		selector_models=["deepseek-chat"],
+		dataset="bird_developer",
+		num_threads=7,
 		verbose=1,
 	)
 
-	print("Summary of single selector choices:")
+	print("Summary of selector runs (four-candidate selection):")
 	print(json.dumps(summary, indent=2))
