@@ -6,7 +6,7 @@ This repository evaluates and compares multiple text-to-SQL candidate systems, t
 - Embedding-based consensus selection (`embedding_pipeline_selection.py`)
 
 It also contains:
-- Data generation scripts for synthetic demo datasets (`generate_results.py`, `generate_selectors_choices.py`)
+- Data generation scripts for synthetic/demo datasets (`generate_results.py`, `generate_fake_visualization_data.py`)
 - SQL cleanup utilities (`sql_cleaner.py`)
 - Visualization apps built with Streamlit (`first_visualization.py`, `binary_visualization.py`)
 

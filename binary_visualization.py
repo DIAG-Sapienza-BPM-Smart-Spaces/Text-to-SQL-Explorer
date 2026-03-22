@@ -24,6 +24,8 @@ QUERY_FILE_TO_DATASET = {
 	"dev.json": "BIRD Developer",
 	"bird_training_queries.json": "BIRD Training",
 	"spider_queries.json": "SPIDER",
+	"train.json": "BIRD Training",
+	"test.json": "SPIDER Test",
 }
 
 
@@ -102,8 +104,7 @@ def load_query_indexes(project_root: str) -> Dict[str, Dict[Tuple[str, int], Dic
 def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
 	root = Path(project_root)
 	binary_dir = root / "binary_choices"
-	if not binary_dir.exists():
-		return [], [], []
+	fake_binary_path = root / "fake_data" / "fake_binary_choices.json"
 
 	query_indexes = load_query_indexes(project_root)
 
@@ -111,63 +112,120 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 	candidate_models = set()
 	judge_models = set()
 
-	for path in sorted(binary_dir.glob("*_binary_choices.json")):
-		try:
-			payload = load_json(path)
-		except Exception:
-			continue
-
-		candidate_model = payload.get("candidate_model", "")
-		judge_model = payload.get("judge_model", "")
-		query_file_name = Path(payload.get("query_file", "")).name
-		dataset_name = QUERY_FILE_TO_DATASET.get(query_file_name, "Unknown")
-		query_index = query_indexes.get(query_file_name, {})
-
-		if candidate_model:
-			candidate_models.add(candidate_model)
-		if judge_model:
-			judge_models.add(judge_model)
-
-		rows = payload.get("results", [])
-		if not isinstance(rows, list):
-			continue
-
-		for row in rows:
-			if not isinstance(row, dict):
-				continue
-
-			db_id = row.get("db_id") or row.get("Database")
-			qid = row.get("question_id", row.get("Query ID"))
-			if db_id is None or qid is None:
-				continue
-
+	if binary_dir.exists():
+		for path in sorted(binary_dir.glob("*_binary_choices.json")):
 			try:
-				qid_int = int(qid)
-			except (TypeError, ValueError):
+				payload = load_json(path)
+			except Exception:
 				continue
 
-			query_meta = query_index.get((str(db_id), qid_int), {})
+			candidate_model = payload.get("candidate_model", "")
+			judge_model = payload.get("judge_model", "")
+			query_file_name = Path(payload.get("query_file", "")).name
+			dataset_name = QUERY_FILE_TO_DATASET.get(query_file_name, "Unknown")
+			query_index = query_indexes.get(query_file_name, {})
 
-			enriched_row = {
-				"candidate_model": row.get("candidate_model", candidate_model),
-				"judge_model": row.get("Judge Model", judge_model),
-				"dataset": dataset_name,
-				"db_id": str(db_id),
-				"question_id": qid_int,
-				"nl_query": query_meta.get("question", ""),
-				"evidence": query_meta.get("evidence", ""),
-				"ground_truth_sql": query_meta.get("ground_truth_sql", ""),
-				"difficulty": query_meta.get("difficulty"),
-				"complexity": query_meta.get("complexity"),
-				"length": query_meta.get("length"),
-				"tables": query_meta.get("tables"),
-				"attributes": query_meta.get("attributes"),
-				"candidate_sql": row.get("candidate_sql", ""),
-				"choice": str(row.get("choice", "")).strip().upper(),
-				"reasoning": row.get("Reasoning", ""),
-				"execution_vs_ground_truth": row.get("execution_vs_ground_truth"),
-			}
-			all_rows.append(enriched_row)
+			if candidate_model:
+				candidate_models.add(candidate_model)
+			if judge_model:
+				judge_models.add(judge_model)
+
+			rows = payload.get("results", [])
+			if not isinstance(rows, list):
+				continue
+
+			for row in rows:
+				if not isinstance(row, dict):
+					continue
+
+				db_id = row.get("db_id") or row.get("Database")
+				qid = row.get("question_id", row.get("Query ID"))
+				if db_id is None or qid is None:
+					continue
+
+				try:
+					qid_int = int(qid)
+				except (TypeError, ValueError):
+					continue
+
+				query_meta = query_index.get((str(db_id), qid_int), {})
+
+				enriched_row = {
+					"candidate_model": row.get("candidate_model", candidate_model),
+					"judge_model": row.get("Judge Model", judge_model),
+					"dataset": dataset_name,
+					"db_id": str(db_id),
+					"question_id": qid_int,
+					"nl_query": query_meta.get("question", ""),
+					"evidence": query_meta.get("evidence", ""),
+					"ground_truth_sql": query_meta.get("ground_truth_sql", ""),
+					"difficulty": query_meta.get("difficulty"),
+					"complexity": query_meta.get("complexity"),
+					"length": query_meta.get("length"),
+					"tables": query_meta.get("tables"),
+					"attributes": query_meta.get("attributes"),
+					"candidate_sql": row.get("candidate_sql", ""),
+					"choice": str(row.get("choice", "")).strip().upper(),
+					"reasoning": row.get("Reasoning", ""),
+					"execution_vs_ground_truth": row.get("execution_vs_ground_truth"),
+				}
+				all_rows.append(enriched_row)
+
+	if fake_binary_path.exists():
+		try:
+			fake_payload = load_json(fake_binary_path)
+		except Exception:
+			fake_payload = []
+
+		if isinstance(fake_payload, list):
+			for row in fake_payload:
+				if not isinstance(row, dict):
+					continue
+
+				candidate_model = row.get("candidate_model", "")
+				judge_model = row.get("judge_model", "")
+				dataset_name = row.get("dataset", "Unknown")
+				db_id = row.get("db_id")
+				qid = row.get("question_id")
+				if db_id is None or qid is None:
+					continue
+
+				try:
+					qid_int = int(qid)
+				except (TypeError, ValueError):
+					continue
+
+				if candidate_model:
+					candidate_models.add(candidate_model)
+				if judge_model:
+					judge_models.add(judge_model)
+
+				query_meta = {}
+				for query_index in query_indexes.values():
+					query_meta = query_index.get((str(db_id), qid_int), {})
+					if query_meta:
+						break
+
+				enriched_row = {
+					"candidate_model": candidate_model,
+					"judge_model": judge_model,
+					"dataset": dataset_name,
+					"db_id": str(db_id),
+					"question_id": qid_int,
+					"nl_query": query_meta.get("question", ""),
+					"evidence": query_meta.get("evidence", ""),
+					"ground_truth_sql": query_meta.get("ground_truth_sql", ""),
+					"difficulty": query_meta.get("difficulty"),
+					"complexity": query_meta.get("complexity"),
+					"length": query_meta.get("length"),
+					"tables": query_meta.get("tables"),
+					"attributes": query_meta.get("attributes"),
+					"candidate_sql": row.get("candidate_sql", ""),
+					"choice": str(row.get("choice", "")).strip().upper(),
+					"reasoning": row.get("Reasoning", row.get("reasoning", "")),
+					"execution_vs_ground_truth": row.get("execution_vs_ground_truth"),
+				}
+				all_rows.append(enriched_row)
 
 	return (
 		all_rows,

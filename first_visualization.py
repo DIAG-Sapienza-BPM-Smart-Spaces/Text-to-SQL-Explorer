@@ -31,8 +31,11 @@ PAIRWISE_METRICS = [
     "f1_score",
 ]
 
-SELECTOR_SOURCE_LABEL = "DeepSeek selector (GT)"
+SELECTOR_SOURCE_LABEL = "DeepSeek Chat selector"
 EMBEDDING_SELECTOR_SOURCE_LABEL = "Embedding selector"
+FAKE_DATA_DIR = 'fake_data'
+CACHE_DIR = 'cache_results'
+CACHE_SCHEMA_VERSION = '2026-03-22-v1'
 
 DATASET_FLAGS = {
     "BIRD Training": True,
@@ -41,6 +44,42 @@ DATASET_FLAGS = {
     "SPIDER Dev": True,
     "SPIDER Test": True,
 }
+
+SELECTOR_MODEL_OPTIONS = [
+    {"key": "deepseek-chat", "name": "DeepSeek Chat", "tooltip": "Use DeepSeek Chat as single-selector model."},
+    {"key": "qwen2.5-coder_32b", "name": "Qwen2.5 Coder 32B", "tooltip": "Use Qwen2.5 Coder 32B as single-selector model."},
+    {"key": "qwen3-coder_30b", "name": "Qwen3 Coder 30B", "tooltip": "Use Qwen3 Coder 30B as single-selector model."},
+    {"key": "cogito_70b", "name": "Cogito 70b", "tooltip": "Use Cogito 70b as single-selector model."},
+]
+
+
+def selector_source_label(selector_model_system_id):
+    model_name = SYSTEM_ID_TO_MODEL.get(selector_model_system_id, selector_model_system_id)
+    return f"{model_name} selector"
+
+
+def selector_source_to_model_label(source_name):
+    suffix = " selector"
+    if isinstance(source_name, str) and source_name.endswith(suffix):
+        return source_name[:-len(suffix)]
+    return source_name
+
+
+def _ensure_cache_dir():
+    os.makedirs(CACHE_DIR, exist_ok=True)
+
+
+def _build_file_signature(file_paths, extra_tag=""):
+    chunks = [CACHE_SCHEMA_VERSION, str(extra_tag)]
+    for file_path in file_paths:
+        abs_path = os.path.abspath(file_path)
+        if os.path.exists(abs_path):
+            stat = os.stat(abs_path)
+            chunks.append(f"{abs_path}|{stat.st_mtime_ns}|{stat.st_size}")
+        else:
+            chunks.append(f"{abs_path}|missing")
+    raw = "||".join(chunks)
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 SQL_KEYWORDS = {
     "select", "from", "where", "join", "inner", "left", "right", "full", "outer", "on", "and", "or",
@@ -157,6 +196,20 @@ def load_dataset_sql_stats(dataset_name, dataset_path, tables_path):
     if not os.path.exists(dataset_path) or not os.path.exists(tables_path):
         return {}
 
+    _ensure_cache_dir()
+    cache_id = hashlib.sha256(f"{dataset_name}|{dataset_path}|{tables_path}".encode('utf-8')).hexdigest()[:16]
+    cache_path = os.path.join(CACHE_DIR, f"sql_stats_{cache_id}.json")
+    cache_signature = _build_file_signature([dataset_path, tables_path], extra_tag=f"sql_stats|{dataset_name}")
+
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cached = json.load(f)
+            if cached.get('signature') == cache_signature and isinstance(cached.get('stats'), dict):
+                return cached['stats']
+        except Exception:
+            pass
+
     with open(dataset_path, 'r', encoding='utf-8') as f:
         dataset_payload = json.load(f)
     with open(tables_path, 'r', encoding='utf-8') as f:
@@ -201,6 +254,12 @@ def load_dataset_sql_stats(dataset_name, dataset_path, tables_path):
             'length': int(discrete_lengths[idx]) if idx < len(discrete_lengths) else 0,
         }
 
+    try:
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump({'signature': cache_signature, 'stats': stats_by_gid}, f)
+    except Exception:
+        pass
+
     return stats_by_gid
 
 # Load query datasets
@@ -208,6 +267,14 @@ def load_dataset_sql_stats(dataset_name, dataset_path, tables_path):
 def load_queries():
     """Load all supported query datasets from datasets_files and normalize columns."""
     queries_list = []
+    dataset_sources = [
+        ('BIRD Training', 'datasets_files/BIRD/train.json', 'datasets_files/BIRD/train_tables.json'),
+        ('BIRD Developer', 'datasets_files/BIRD/dev.json', 'datasets_files/BIRD/dev_tables.json'),
+        ('SPIDER Training', 'datasets_files/SPIDER/train_spider.json', 'datasets_files/SPIDER/tables.json'),
+        ('SPIDER Training', 'datasets_files/SPIDER/train_others.json', 'datasets_files/SPIDER/tables.json'),
+        ('SPIDER Dev', 'datasets_files/SPIDER/dev.json', 'datasets_files/SPIDER/tables.json'),
+        ('SPIDER Test', 'datasets_files/SPIDER/test.json', 'datasets_files/SPIDER/test_tables.json'),
+    ]
 
     def _normalize_queries(raw_df: pd.DataFrame, dataset_name: str) -> pd.DataFrame:
         if raw_df.empty:
@@ -250,14 +317,26 @@ def load_queries():
         return normalized
     
     try:
-        dataset_sources = [
-            ('BIRD Training', 'datasets_files/BIRD/train.json', 'datasets_files/BIRD/train_tables.json'),
-            ('BIRD Developer', 'datasets_files/BIRD/dev.json', 'datasets_files/BIRD/dev_tables.json'),
-            ('SPIDER Training', 'datasets_files/SPIDER/train_spider.json', 'datasets_files/SPIDER/tables.json'),
-            ('SPIDER Training', 'datasets_files/SPIDER/train_others.json', 'datasets_files/SPIDER/tables.json'),
-            ('SPIDER Dev', 'datasets_files/SPIDER/dev.json', 'datasets_files/SPIDER/tables.json'),
-            ('SPIDER Test', 'datasets_files/SPIDER/test.json', 'datasets_files/SPIDER/test_tables.json'),
-        ]
+        _ensure_cache_dir()
+        signature_paths = []
+        for _, dataset_path, tables_path in dataset_sources:
+            signature_paths.append(dataset_path)
+            signature_paths.append(tables_path)
+        queries_signature = _build_file_signature(signature_paths, extra_tag='queries_dataframe')
+
+        queries_cache_meta_path = os.path.join(CACHE_DIR, 'queries_cache_meta.json')
+        queries_cache_data_path = os.path.join(CACHE_DIR, 'queries_cache.pkl')
+
+        if os.path.exists(queries_cache_meta_path) and os.path.exists(queries_cache_data_path):
+            try:
+                with open(queries_cache_meta_path, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                if meta.get('signature') == queries_signature:
+                    cached_df = pd.read_pickle(queries_cache_data_path)
+                    if isinstance(cached_df, pd.DataFrame):
+                        return cached_df
+            except Exception:
+                pass
 
         for dataset_name, dataset_path, tables_path in dataset_sources:
             with open(dataset_path, 'r', encoding='utf-8') as f:
@@ -286,6 +365,14 @@ def load_queries():
         
         # Concatenate all dataframes at once for efficiency
         queries_data = pd.concat(queries_list, ignore_index=True) if queries_list else pd.DataFrame()
+
+        try:
+            queries_data.to_pickle(queries_cache_data_path)
+            with open(queries_cache_meta_path, 'w', encoding='utf-8') as f:
+                json.dump({'signature': queries_signature}, f)
+        except Exception:
+            pass
+
         return queries_data
     except FileNotFoundError as e:
         st.error(f"Error loading query files: {e}")
@@ -303,51 +390,94 @@ databases = {
 # Load model results
 @st.cache_data
 def load_model_results():
-    """Load model-vs-ground-truth pairwise metrics for all candidate models."""
+    """Load true pairwise metrics and fill missing datasets with fake execution metrics."""
     all_rows = []
     seen = set()
     
     try:
-        with open('all_pairwise_comparisons.json', 'r', encoding='utf-8') as f:
-            json_data = json.load(f)
+        if os.path.exists('all_pairwise_comparisons.json'):
+            with open('all_pairwise_comparisons.json', 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
 
-        for query_data in json_data.values():
-            query_id = query_data.get('question_id')
-            database = query_data.get('db_id')
+            for query_data in json_data.values():
+                query_id = query_data.get('question_id')
+                database = query_data.get('db_id')
 
-            for comparison in query_data.get('comparisons', {}).values():
-                system1 = comparison.get('system1')
-                system2 = comparison.get('system2')
+                for comparison in query_data.get('comparisons', {}).values():
+                    system1 = comparison.get('system1')
+                    system2 = comparison.get('system2')
 
-                if system1 == 'ground_truth' and system2 in SYSTEM_ID_TO_MODEL:
-                    model_name = SYSTEM_ID_TO_MODEL[system2]
-                elif system2 == 'ground_truth' and system1 in SYSTEM_ID_TO_MODEL:
-                    model_name = SYSTEM_ID_TO_MODEL[system1]
-                else:
-                    continue
-
-                for metric_key in PAIRWISE_METRICS:
-                    metric_value = comparison.get(metric_key)
-                    if not isinstance(metric_value, (int, float)):
+                    if system1 == 'ground_truth' and system2 in SYSTEM_ID_TO_MODEL:
+                        model_name = SYSTEM_ID_TO_MODEL[system2]
+                    elif system2 == 'ground_truth' and system1 in SYSTEM_ID_TO_MODEL:
+                        model_name = SYSTEM_ID_TO_MODEL[system1]
+                    else:
                         continue
 
-                    # Pairwise metrics are in [0,1], normalize to percentage scale for chart consistency.
-                    if metric_value <= 1.0:
-                        metric_value *= 100.0
+                    for metric_key in PAIRWISE_METRICS:
+                        metric_value = comparison.get(metric_key)
+                        if not isinstance(metric_value, (int, float)):
+                            continue
 
-                    dedup_key = (query_id, database, model_name, metric_key)
-                    if dedup_key in seen:
+                        # Pairwise metrics are in [0,1], normalize to percentage scale for chart consistency.
+                        if metric_value <= 1.0:
+                            metric_value *= 100.0
+
+                        dedup_key = ('BIRD Developer', query_id, database, model_name, metric_key)
+                        if dedup_key in seen:
+                            continue
+                        seen.add(dedup_key)
+
+                        all_rows.append({
+                            'dataset': 'BIRD Developer',
+                            'database': database,
+                            'id': query_id,
+                            'model': model_name,
+                            'metric': metric_key,
+                            'value': metric_value,
+                        })
+
+        fake_execution_path = os.path.join(FAKE_DATA_DIR, 'fake_execution_metrics.json')
+        if os.path.exists(fake_execution_path):
+            with open(fake_execution_path, 'r', encoding='utf-8') as f:
+                fake_rows = json.load(f)
+
+            if isinstance(fake_rows, list):
+                for row in fake_rows:
+                    if not isinstance(row, dict):
                         continue
-                    seen.add(dedup_key)
 
-                    all_rows.append({
-                        'dataset': 'BIRD Developer',
-                        'database': database,
-                        'id': query_id,
-                        'model': model_name,
-                        'metric': metric_key,
-                        'value': metric_value,
-                    })
+                    dataset_name = row.get('dataset')
+                    query_id = row.get('question_id')
+                    database = row.get('db_id')
+                    system_model = row.get('model')
+                    metrics = row.get('metrics') or {}
+
+                    model_name = SYSTEM_ID_TO_MODEL.get(system_model)
+                    if not model_name:
+                        continue
+
+                    for metric_key in PAIRWISE_METRICS:
+                        metric_value = metrics.get(metric_key)
+                        if not isinstance(metric_value, (int, float)):
+                            continue
+
+                        if metric_value <= 1.0:
+                            metric_value *= 100.0
+
+                        dedup_key = (dataset_name, query_id, database, model_name, metric_key)
+                        if dedup_key in seen:
+                            continue
+                        seen.add(dedup_key)
+
+                        all_rows.append({
+                            'dataset': dataset_name,
+                            'database': database,
+                            'id': query_id,
+                            'model': model_name,
+                            'metric': metric_key,
+                            'value': metric_value,
+                        })
         
         # Create DataFrame from all rows
         results_data = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
@@ -362,74 +492,160 @@ def load_model_results():
 
 @st.cache_data
 def load_selector_ground_truth_results():
-    """Load precomputed DeepSeek selector performance metrics against ground truth."""
+    """Load true selector metrics plus fake fallback for all selector models."""
     file_path = 'selectors/deepseek-chat_selector_performance_vs_ground_truth.json'
-    if not os.path.exists(file_path):
-        return pd.DataFrame()
 
     rows = []
-    with open(file_path, 'r', encoding='utf-8') as f:
-        payload = json.load(f)
+    seen = set()
 
-    for row in payload.get('per_query', []):
-        query_id = row.get('question_id')
-        database = row.get('db_id')
-        for metric_key in PAIRWISE_METRICS:
-            metric_value = row.get(metric_key)
-            if not isinstance(metric_value, (int, float)):
-                continue
-            if metric_value <= 1.0:
-                metric_value *= 100.0
-            rows.append({
-                'dataset': 'BIRD Developer',
-                'database': database,
-                'id': query_id,
-                'model': SELECTOR_SOURCE_LABEL,
-                'metric': metric_key,
-                'value': metric_value,
-            })
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+
+        for row in payload.get('per_query', []):
+            query_id = row.get('question_id')
+            database = row.get('db_id')
+            selector_model = payload.get('selector_model', 'deepseek-chat')
+            source_label = selector_source_label(selector_model)
+            for metric_key in PAIRWISE_METRICS:
+                metric_value = row.get(metric_key)
+                if not isinstance(metric_value, (int, float)):
+                    continue
+                if metric_value <= 1.0:
+                    metric_value *= 100.0
+
+                dedup_key = ('BIRD Developer', query_id, database, source_label, metric_key)
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+
+                rows.append({
+                    'dataset': 'BIRD Developer',
+                    'database': database,
+                    'id': query_id,
+                    'model': source_label,
+                    'metric': metric_key,
+                    'value': metric_value,
+                })
+
+    fake_selector_path = os.path.join(FAKE_DATA_DIR, 'fake_selector_performance.json')
+    if os.path.exists(fake_selector_path):
+        with open(fake_selector_path, 'r', encoding='utf-8') as f:
+            fake_payload = json.load(f)
+
+        if isinstance(fake_payload, list):
+            for row in fake_payload:
+                if not isinstance(row, dict):
+                    continue
+
+                dataset_name = row.get('dataset')
+                query_id = row.get('question_id')
+                database = row.get('db_id')
+                source_label = selector_source_label(row.get('selector_model', 'deepseek-chat'))
+
+                for metric_key in PAIRWISE_METRICS:
+                    metric_value = row.get(metric_key)
+                    if not isinstance(metric_value, (int, float)):
+                        continue
+                    if metric_value <= 1.0:
+                        metric_value *= 100.0
+
+                    dedup_key = (dataset_name, query_id, database, source_label, metric_key)
+                    if dedup_key in seen:
+                        continue
+                    seen.add(dedup_key)
+
+                    rows.append({
+                        'dataset': dataset_name,
+                        'database': database,
+                        'id': query_id,
+                        'model': source_label,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    })
 
     return pd.DataFrame(rows)
 
 
 @st.cache_data
 def load_embedding_selector_results():
-    """Load embedding selector performance metrics against ground truth."""
+    """Load true embedding selector metrics plus fake fallback for missing datasets."""
     file_path = 'embedding_pipeline_selection_results.json'
-    if not os.path.exists(file_path):
-        return pd.DataFrame()
 
     rows = []
-    with open(file_path, 'r', encoding='utf-8') as f:
-        payload = json.load(f)
+    seen = set()
 
-    if not isinstance(payload, list):
-        return pd.DataFrame()
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
 
-    for row in payload:
-        if not isinstance(row, dict):
-            continue
+        if isinstance(payload, list):
+            for row in payload:
+                if not isinstance(row, dict):
+                    continue
 
-        query_id = row.get('question_id')
-        database = row.get('db_id')
-        metrics = row.get('ground_truth_comparison_metrics') or {}
+                query_id = row.get('question_id')
+                database = row.get('db_id')
+                metrics = row.get('ground_truth_comparison_metrics') or {}
 
-        for metric_key in PAIRWISE_METRICS:
-            metric_value = metrics.get(metric_key)
-            if not isinstance(metric_value, (int, float)):
-                continue
+                for metric_key in PAIRWISE_METRICS:
+                    metric_value = metrics.get(metric_key)
+                    if not isinstance(metric_value, (int, float)):
+                        continue
 
-            if metric_value <= 1.0:
-                metric_value *= 100.0
+                    if metric_value <= 1.0:
+                        metric_value *= 100.0
 
-            rows.append({
-                'dataset': 'BIRD Developer',
-                'database': database,
-                'id': query_id,
-                'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
-                'metric': metric_key,
-                'value': metric_value,
-            })
+                    dedup_key = ('BIRD Developer', query_id, database, metric_key)
+                    if dedup_key in seen:
+                        continue
+                    seen.add(dedup_key)
+
+                    rows.append({
+                        'dataset': 'BIRD Developer',
+                        'database': database,
+                        'id': query_id,
+                        'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    })
+
+    fake_embedding_path = os.path.join(FAKE_DATA_DIR, 'fake_embedding_selection.json')
+    if os.path.exists(fake_embedding_path):
+        with open(fake_embedding_path, 'r', encoding='utf-8') as f:
+            fake_payload = json.load(f)
+
+        if isinstance(fake_payload, list):
+            for row in fake_payload:
+                if not isinstance(row, dict):
+                    continue
+
+                dataset_name = row.get('dataset')
+                query_id = row.get('question_id')
+                database = row.get('db_id')
+                metrics = row.get('ground_truth_comparison_metrics') or {}
+
+                for metric_key in PAIRWISE_METRICS:
+                    metric_value = metrics.get(metric_key)
+                    if not isinstance(metric_value, (int, float)):
+                        continue
+
+                    if metric_value <= 1.0:
+                        metric_value *= 100.0
+
+                    dedup_key = (dataset_name, query_id, database, metric_key)
+                    if dedup_key in seen:
+                        continue
+                    seen.add(dedup_key)
+
+                    rows.append({
+                        'dataset': dataset_name,
+                        'database': database,
+                        'id': query_id,
+                        'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    })
 
     return pd.DataFrame(rows)
 
@@ -471,7 +687,7 @@ if not all_embedding_selector_results.empty:
         all_embedding_selector_results['id'].astype(str)
     ).apply(string_to_deterministic_int)
 
-def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None):
+def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None, selected_selector_models=None):
     """
     Collect all relevant results for active queries based on selections.
     
@@ -505,21 +721,24 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
     # Build selector-derived metric rows if selector mode is active.
     if selected_selectors_dict is None:
         selected_selectors_dict = {}
+    if selected_selector_models is None:
+        selected_selector_models = []
 
     selector_rows = []
     selector_enabled = selected_selectors_dict.get('single_selector', False)
     embedding_selector_enabled = selected_selectors_dict.get('embedding_selector', False)
-    all_four_selected = set(selected_models) == set(models)
+    selected_selector_sources = [selector_source_label(s) for s in selected_selector_models]
 
-    if selector_enabled and all_four_selected and selected_metric_keys and not all_selector_results.empty:
+    if selector_enabled and selected_metric_keys and selected_selector_sources and not all_selector_results.empty:
         selector_df = all_selector_results[
             all_selector_results['g_id'].isin(active_g_ids) &
+            all_selector_results['model'].isin(selected_selector_sources) &
             all_selector_results['metric'].isin(selected_metric_keys)
         ].copy()
         if not selector_df.empty:
             selector_rows = selector_df.to_dict(orient='records')
 
-    if embedding_selector_enabled and all_four_selected and selected_metric_keys and not all_embedding_selector_results.empty:
+    if embedding_selector_enabled and selected_metric_keys and not all_embedding_selector_results.empty:
         embedding_selector_df = all_embedding_selector_results[
             all_embedding_selector_results['g_id'].isin(active_g_ids) &
             all_embedding_selector_results['metric'].isin(selected_metric_keys)
@@ -547,9 +766,9 @@ metrics = [
 ]
 
 selectors = [
-    {"name": "Single LLM Selector (DeepSeek)", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Prototype mode: plots DeepSeek selector precomputed metrics against ground truth."},
-    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding pipeline selector metrics from embedding_pipeline_selection_results.json."},
-    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "enabled": False, "tooltip": "Disabled in prototype: no real datapoints available yet."}
+    {"name": "Single LLM Selector", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Plots single-selector metrics for the selected selector models."},
+    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."},
+    {"name": "Ensemble of LLMs", "key": "llms_ensemble", "default": False, "enabled": False, "tooltip": "Ensemble selector mode is currently not plotted in this chart."}
 ]
 
 # Color definitions - organized by color families
@@ -850,12 +1069,13 @@ with columns[0]:
     
     # Initialize shared state
     selected_databases = []
+    selected_selector_models = []
     
     # PRIMA SOTTO-COLONNA
     with sub_cols[0]:
-        # Selezione Modello
+        # Model Selection
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selezione Modello</h3><span class="tooltip-text">Select language models to evaluate</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Model Selection</h3><span class="tooltip-text">Select candidate models to display in the chart</span></div>', unsafe_allow_html=True)
             selected_models = []
             for i, model in enumerate(models):
                 css_class = get_model_class(model)
@@ -863,13 +1083,13 @@ with columns[0]:
                 with col1:
                     checked = st.checkbox("", value=False, key=f"model_{i}", label_visibility="collapsed")
                 with col2:
-                    st.markdown(f'<p class="{css_class} text-item">{model}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
                 if checked:
                     selected_models.append(model)
         
-        # Selezione Metrica
+        # Metric Selection
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selezione Metrica</h3><span class="tooltip-text">Choose evaluation metrics for query assessment</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Metric Selection</h3><span class="tooltip-text">Choose evaluation metrics for query assessment</span></div>', unsafe_allow_html=True)
             selected_metrics = {}
             for metric in metrics:
                 css_class = get_metric_class(metric["key"])
@@ -880,14 +1100,14 @@ with columns[0]:
                     st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_metrics[metric["key"]] = checked
         
-        # Selezione Dataset
+        # Dataset Selection
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selezione Dataset</h3><span class="tooltip-text">Select benchmark datasets for evaluation</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Dataset Selection</h3><span class="tooltip-text">Select benchmark datasets for evaluation</span></div>', unsafe_allow_html=True)
             selected_datasets = []
             for i, dataset in enumerate(datasets):
                 css_class = get_dataset_class(dataset)
                 dataset_enabled = DATASET_FLAGS.get(dataset, True)
-                dataset_label = dataset if dataset_enabled else f"{dataset} (disabled in prototype)"
+                dataset_label = dataset if dataset_enabled else f"{dataset} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
                     checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
@@ -895,15 +1115,15 @@ with columns[0]:
                     st.markdown(f'<p class="{css_class} text-item">{dataset_label}</p>', unsafe_allow_html=True)
                 if checked:
                     selected_datasets.append(dataset)
-            st.caption("Prototype flag: only BIRD Developer has real pairwise datapoints right now.")
+            st.caption("Data can come from real or generated sources, depending on availability.")
 
     # Database
     with sub_cols[1]:
-        # Selezione Database: un widget per dataset, ognuno con altezza fissa e scroll interno.
+        # Database Selection: one fixed-height scrollable widget per dataset.
         if not selected_datasets:
             with st.container(border=True):
-                st.markdown('<div class="tooltip-container"><h3>Selezione Database</h3><span class="tooltip-text">Select databases grouped by selected datasets</span></div>', unsafe_allow_html=True)
-                st.info("Seleziona almeno un dataset per mostrare i database disponibili")
+                st.markdown('<h3>Database Selection</h3>', unsafe_allow_html=True)
+                st.info("Select at least one dataset to view available databases")
         else:
             for dataset_idx, dataset_name in enumerate(selected_datasets):
                 if dataset_name not in databases:
@@ -932,19 +1152,15 @@ with columns[0]:
                         if checked:
                             selected_databases.append(db)
 
-    # TERZA SOTTO-COLONNA
+    # Third sub-column
     with sub_cols[2]:
-        all_four_models_selected = set(selected_models) == set(models)
-
-        # Selezione Selettore
+        # Selector Mode
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selettori</h3><span class="tooltip-text">Select way to select SQL candidates between selected models</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Selector Modes</h3><span class="tooltip-text">Select which selector pipelines to include in the chart</span></div>', unsafe_allow_html=True)
             selected_selectors = {}
             for selector in selectors:
                 css_class = get_selector_class(selector["key"])
                 selector_enabled = selector.get("enabled", True)
-                if selector["key"] in ("single_selector", "embedding_selector"):
-                    selector_enabled = selector_enabled and all_four_models_selected
                 selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
@@ -959,56 +1175,50 @@ with columns[0]:
                     st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_selectors[selector["key"]] = checked
 
-            # Keep selector state consistent if user deselects one of the four candidate models.
-            if not all_four_models_selected and selected_selectors.get("single_selector", False):
-                selected_selectors["single_selector"] = False
-                st.session_state["selector_single_selector"] = False
-            if not all_four_models_selected and selected_selectors.get("embedding_selector", False):
-                selected_selectors["embedding_selector"] = False
-                st.session_state["selector_embedding_selector"] = False
-
-            if not all_four_models_selected:
-                st.caption("Select all 4 candidate models to enable selector modes (DeepSeek single-selector and embedding selector).")
-
-        # Modelli da usare come giudici single-selector
+        # Single-selector model choices
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single LLM selectors</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single-selector sources</span></div>', unsafe_allow_html=True)
             single_selector_enabled = selected_selectors.get("single_selector", False)
-            css_class = get_model_class("DeepSeek Chat")
-            st.session_state["selector_model_deepseek"] = single_selector_enabled
-            col1, col2 = st.columns([0.1, 0.9])
-            with col1:
-                st.checkbox(
-                    "",
-                    key="selector_model_deepseek",
-                    label_visibility="collapsed",
-                    disabled=True
-                )
-            with col2:
-                st.markdown(f'<p class="{css_class} text-item">DeepSeek Chat only</p>', unsafe_allow_html=True)
+            selected_selector_models = []
+            for option in SELECTOR_MODEL_OPTIONS:
+                key = f"selector_model_{option['key'].replace('.', '_').replace('-', '_')}"
+                css_class = get_model_class(option["name"])
+                col1, col2 = st.columns([0.1, 0.9])
+                with col1:
+                    checked = st.checkbox(
+                        "",
+                        value=single_selector_enabled,
+                        key=key,
+                        label_visibility="collapsed",
+                        disabled=not single_selector_enabled
+                    )
+                with col2:
+                    st.markdown(
+                        f'<div class="tooltip-container"><p class="{css_class} text-item">{option["name"]}</p><span class="tooltip-text">{option["tooltip"]}</span></div>',
+                        unsafe_allow_html=True
+                    )
+                if checked:
+                    selected_selector_models.append(option["key"])
 
-            if single_selector_enabled:
-                st.warning("Prototype flag: DeepSeek selector bars are available only when all four candidate models are selected.")
-
-    # QUARTA SOTTO-COLONNA (terza originale)
+    # Fourth sub-column
     with sub_cols[3]:
         
         # Collect all queries from selected datasets and databases
         all_selected_queries = collect_all_selected_queries(selected_datasets, selected_databases)
         query_ranges = get_query_ranges(all_selected_queries)
         
-        # Selettori Query
+        # Query Filters
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selettori Query</h3><span class="tooltip-text">Filter queries by discrete SQL length, table involvement, and attribute involvement</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Query Filters</h3><span class="tooltip-text">Filter queries by discrete SQL length, table involvement, and attribute involvement</span></div>', unsafe_allow_html=True)
             
             # Show available query info
             if len(all_selected_queries) > 0:
-                st.caption(f"📚 Query disponibili: {len(all_selected_queries)} | "
-                          f"Range disponibili - L:[{query_ranges['length'][0]}-{query_ranges['length'][1]}] "
+                st.caption(f"Available queries: {len(all_selected_queries)} | "
+                          f"Ranges - L:[{query_ranges['length'][0]}-{query_ranges['length'][1]}] "
                           f"T:[{query_ranges['tables'][0]}-{query_ranges['tables'][1]}] "
                           f"A:[{query_ranges['attributes'][0]}-{query_ranges['attributes'][1]}]")
             else:
-                st.info("ℹ️ Seleziona dataset e database per vedere le query disponibili")
+                st.info("Select datasets and databases to view available queries")
 
             length_min, length_max, length_default = normalize_slider_bounds(query_ranges['length'])
             tables_min, tables_max, tables_default = normalize_slider_bounds(query_ranges['tables'])
@@ -1016,28 +1226,28 @@ with columns[0]:
             
             # Dynamic sliders based on available query ranges
             length_range = st.slider(
-                "Lunghezza", 
+                "Length", 
                 min_value=length_min,
                 max_value=length_max,
                 value=length_default,
                 key="length_slider",
-                help="Filtra per lunghezza del testo della query"
+                help="Filter by SQL/text length bucket"
             )
             tables_range = st.slider(
-                "Tabelle Coinvolte", 
+                "Tables Involved", 
                 min_value=tables_min,
                 max_value=tables_max,
                 value=tables_default,
                 key="tables_slider",
-                help="Filtra per numero di tabelle coinvolte nella query"
+                help="Filter by number of tables involved in the query"
             )
             attributes_range = st.slider(
-                "Attributi Coinvolti", 
+                "Attributes Involved", 
                 min_value=attributes_min,
                 max_value=attributes_max,
                 value=attributes_default,
                 key="attributes_slider",
-                help="Filtra per numero di attributi/colonne coinvolte"
+                help="Filter by number of involved attributes/columns"
             )
             
             # Filter queries based on slider values
@@ -1054,15 +1264,15 @@ with columns[0]:
             
             # Visual indicator with color coding
             if total_active == 0:
-                st.error(f"⚠️ **Query attive:** {total_active} / {total_available}")
+                st.error(f"Active queries: {total_active} / {total_available}")
             elif total_active == total_available:
-                st.success(f"✅ **Query attive:** {total_active} / {total_available}")
+                st.success(f"Active queries: {total_active} / {total_available}")
             else:
-                st.info(f"🔍 **Query attive:** {total_active} / {total_available}")
+                st.info(f"Active queries: {total_active} / {total_available}")
             
             # Show breakdown by dataset/database using pandas groupby
             if total_active > 0:
-                with st.expander("📊 Ripartizione query attive"):
+                with st.expander("Active Query Breakdown"):
                     # Use pandas groupby for efficient aggregation
                     breakdown = active_queries.groupby(['dataset', 'database']).size().reset_index(name='count')
                     
@@ -1077,10 +1287,10 @@ with columns[0]:
             
             # Show active queries in an expander
             if total_active > 0:
-                with st.expander(f"Visualizza query attive ({total_active})"):
+                with st.expander(f"View active queries ({total_active})"):
                     # Display as dataframe with selected columns
                     display_df = active_queries[['id', 'query', 'dataset', 'database', 'length', 'tables', 'attributes']].copy()
-                    display_df.columns = ['ID', 'Query', 'Dataset', 'Database', 'Lunghezza', 'Tabelle', 'Attributi']
+                    display_df.columns = ['ID', 'Query', 'Dataset', 'Database', 'Length', 'Tables', 'Attributes']
                     
                     st.dataframe(
                         display_df,
@@ -1092,7 +1302,7 @@ with columns[0]:
                     # Download button for active queries
                     csv = active_queries.to_csv(index=False).encode('utf-8')
                     st.download_button(
-                        label="📥 Scarica query attive (CSV)",
+                        label="Download active queries (CSV)",
                         data=csv,
                         file_name="active_queries.csv",
                         mime="text/csv"
@@ -1104,6 +1314,7 @@ with columns[0]:
                 selected_models,
                 selected_metrics,
                 selected_selectors_dict=selected_selectors,
+                selected_selector_models=selected_selector_models,
             )
             
             # Store active results in session state
@@ -1112,22 +1323,22 @@ with columns[0]:
             
             # Display active results stats
             if len(active_results_df) > 0:
-                with st.expander(f"📊 Risultati attivi ({len(active_results_df)} datapoints)"):
+                with st.expander(f"Active results ({len(active_results_df)} datapoints)"):
                     # Show summary by model and metric
-                    st.markdown("**Ripartizione risultati:**")
+                    st.markdown("**Results breakdown:**")
                     
                     # Group by model and metric
                     if not active_results_df.empty:
                         summary = active_results_df.groupby(['model', 'metric']).agg({
                             'value': ['count', 'mean', 'min', 'max']
                         }).round(2)
-                        summary.columns = ['Count', 'Media (%)', 'Min (%)', 'Max (%)']
+                        summary.columns = ['Count', 'Mean (%)', 'Min (%)', 'Max (%)']
                         st.dataframe(summary, use_container_width=True)
                         
                         # Download button
                         csv_results = active_results_df.to_csv(index=False).encode('utf-8')
                         st.download_button(
-                            label="📥 Scarica risultati attivi (CSV)",
+                            label="Download active results (CSV)",
                             data=csv_results,
                             file_name="active_results.csv",
                             mime="text/csv"
@@ -1135,7 +1346,7 @@ with columns[0]:
                         
 
 with columns[1]:
-    st.header("Barplot")
+    st.header("Bar Plot")
 
     # Display active results in a bar plot grouped by metric and colored by model
     if 'active_results_df' in st.session_state and not st.session_state['active_results_df'].empty:
@@ -1170,9 +1381,9 @@ with columns[1]:
         
         # Build visible sources: selected candidate models + selector sources
         visible_sources = list(selected_models)
-        if selected_selectors.get('single_selector', False) and set(selected_models) == set(models):
-            visible_sources.append(SELECTOR_SOURCE_LABEL)
-        if selected_selectors.get('embedding_selector', False) and set(selected_models) == set(models):
+        if selected_selectors.get('single_selector', False):
+            visible_sources.extend([selector_source_label(s) for s in selected_selector_models])
+        if selected_selectors.get('embedding_selector', False):
             visible_sources.append(EMBEDDING_SELECTOR_SOURCE_LABEL)
 
         # Keep order and drop duplicates
@@ -1182,14 +1393,12 @@ with columns[1]:
         for source_name in visible_sources:
             model_data = grouped_data[grouped_data['model'] == source_name]
 
-            # Selector bar uses a dedicated color and hatch pattern in prototype mode.
-            is_selector_source = source_name == SELECTOR_SOURCE_LABEL
+            # Selector bars inherit their underlying model color and use hatch patterns.
+            is_selector_source = source_name.endswith(" selector") and source_name != EMBEDDING_SELECTOR_SOURCE_LABEL
 
             if is_selector_source:
-                if source_name == EMBEDDING_SELECTOR_SOURCE_LABEL:
-                    trace_color = selectors_colors.get('embedding_selector', '#8E44AD')
-                else:
-                    trace_color = selectors_colors.get('single_selector', '#6A1B9A')
+                base_model_name = selector_source_to_model_label(source_name)
+                trace_color = model_colors.get(base_model_name, selectors_colors.get('single_selector', '#6A1B9A'))
                 pattern_shape = '/'
             else:
                 trace_color = model_colors.get(source_name, '#888888')
