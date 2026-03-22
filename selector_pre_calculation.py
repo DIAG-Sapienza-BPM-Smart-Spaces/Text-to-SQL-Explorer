@@ -4,6 +4,8 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple
 
+from common_utils import load_json
+
 
 METRIC_FIELDS = [
 	"schema_precision",
@@ -23,8 +25,7 @@ def _safe_float(value: Any) -> float:
 
 
 def _load_json(path: Path) -> Any:
-	with path.open("r", encoding="utf-8") as f:
-		return json.load(f)
+	return load_json(path)
 
 
 def _extract_metrics(record: Dict[str, Any]) -> Dict[str, float]:

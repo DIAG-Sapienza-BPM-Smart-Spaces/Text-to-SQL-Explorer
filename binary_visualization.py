@@ -47,9 +47,12 @@ def load_query_indexes(project_root: str) -> Dict[str, Dict[Tuple[str, int], Dic
 	indexes: Dict[str, Dict[Tuple[str, int], Dict[str, Any]]] = {}
 
 	candidate_paths = [
-		root / "dev.json",
-		root / "datasets" / "bird_training_queries.json",
-		root / "datasets" / "spider_queries.json",
+		root / "datasets_files" / "BIRD" / "dev.json",
+		root / "datasets_files" / "BIRD" / "train.json",
+		root / "datasets_files" / "SPIDER" / "dev.json",
+		root / "datasets_files" / "SPIDER" / "test.json",
+		root / "datasets_files" / "SPIDER" / "train_spider.json",
+		root / "datasets_files" / "SPIDER" / "train_others.json",
 	]
 
 	for path in candidate_paths:

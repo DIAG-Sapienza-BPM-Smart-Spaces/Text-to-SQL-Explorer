@@ -6,7 +6,13 @@ import hashlib
 import re
 
 models = ["DeepSeek Chat", "Qwen2.5 Coder 32B", "Qwen3 Coder 30B", "Cogito 70b"]
-datasets = ["BIRD Training", "BIRD Developer", "SPIDER"]
+datasets = [
+    "BIRD Training",
+    "BIRD Developer",
+    "SPIDER Training",
+    "SPIDER Dev",
+    "SPIDER Test",
+]
 
 MODEL_TO_SYSTEM_ID = {
     "DeepSeek Chat": "deepseek-chat",
@@ -29,9 +35,11 @@ SELECTOR_SOURCE_LABEL = "DeepSeek selector (GT)"
 EMBEDDING_SELECTOR_SOURCE_LABEL = "Embedding selector"
 
 DATASET_FLAGS = {
-    "BIRD Training": False,
+    "BIRD Training": True,
     "BIRD Developer": True,
-    "SPIDER": False,
+    "SPIDER Training": True,
+    "SPIDER Dev": True,
+    "SPIDER Test": True,
 }
 
 SQL_KEYWORDS = {
@@ -144,30 +152,33 @@ def _compute_sql_length_bucket(values, num_buckets=4):
 
 
 @st.cache_data
-def load_bird_dev_ground_truth_stats():
-    """Precompute table/attribute/length stats from BIRD Developer ground-truth SQL once."""
-    dev_path = 'dev.json'
-    tables_path = 'dev_tables.json'
-    if not os.path.exists(dev_path) or not os.path.exists(tables_path):
+def load_dataset_sql_stats(dataset_name, dataset_path, tables_path):
+    """Precompute table/attribute/length stats from SQL text for a dataset split."""
+    if not os.path.exists(dataset_path) or not os.path.exists(tables_path):
         return {}
 
-    with open(dev_path, 'r', encoding='utf-8') as f:
-        dev_payload = json.load(f)
+    with open(dataset_path, 'r', encoding='utf-8') as f:
+        dataset_payload = json.load(f)
     with open(tables_path, 'r', encoding='utf-8') as f:
-        dev_tables_payload = json.load(f)
+        dataset_tables_payload = json.load(f)
 
-    schema_lookup = _build_schema_lookup(dev_tables_payload)
+    schema_lookup = _build_schema_lookup(dataset_tables_payload)
     stats_by_gid = {}
     pending_rows = []
     raw_lengths = []
 
-    for row in dev_payload:
+    for idx, row in enumerate(dataset_payload):
         if not isinstance(row, dict):
             continue
 
         db_id = row.get('db_id')
-        query_id = row.get('question_id')
-        sql_text = row.get('ground_truth') or row.get('SQL') or ""
+        row_id = row.get('question_id')
+        if row_id is None:
+            row_id = row.get('id')
+        if row_id is None:
+            row_id = idx
+
+        sql_text = row.get('ground_truth') or row.get('SQL') or row.get('query') or ""
 
         schema_info = schema_lookup.get(db_id, {})
         table_set = schema_info.get('tables', set())
@@ -178,7 +189,7 @@ def load_bird_dev_ground_truth_stats():
         attribute_count = len(tokens.intersection(column_set)) if column_set else 0
         sql_length = len(re.findall(r'\S+', str(sql_text)))
 
-        gid = string_to_deterministic_int(f"BIRD Developer|{db_id}|{query_id}")
+        gid = string_to_deterministic_int(f"{dataset_name}|{db_id}|{row_id}")
         pending_rows.append((gid, table_count, attribute_count, sql_length))
         raw_lengths.append(sql_length)
 
@@ -195,59 +206,83 @@ def load_bird_dev_ground_truth_stats():
 # Load query datasets
 @st.cache_data
 def load_queries():
-    """Load query datasets from JSON files with BIRD Developer aligned to real dev.json IDs."""
+    """Load all supported query datasets from datasets_files and normalize columns."""
     queries_list = []
+
+    def _normalize_queries(raw_df: pd.DataFrame, dataset_name: str) -> pd.DataFrame:
+        if raw_df.empty:
+            return pd.DataFrame(columns=['id', 'query', 'database', 'length', 'tables', 'attributes', 'dataset'])
+
+        df = raw_df.copy()
+
+        if 'question_id' in df.columns:
+            ids = pd.to_numeric(df['question_id'], errors='coerce')
+            if ids.isna().any():
+                ids = pd.Series(range(len(df)), index=df.index)
+        elif 'id' in df.columns:
+            ids = pd.to_numeric(df['id'], errors='coerce')
+            if ids.isna().any():
+                ids = pd.Series(range(len(df)), index=df.index)
+        else:
+            ids = pd.Series(range(len(df)), index=df.index)
+
+        query_col = ''
+        for col in ('question', 'query'):
+            if col in df.columns:
+                query_col = col
+                break
+
+        db_col = ''
+        for col in ('db_id', 'database'):
+            if col in df.columns:
+                db_col = col
+                break
+
+        normalized = pd.DataFrame({
+            'id': ids.astype(int),
+            'query': df[query_col].astype(str) if query_col else '',
+            'database': df[db_col].astype(str) if db_col else '',
+            'length': pd.to_numeric(df.get('length', pd.Series([0] * len(df), index=df.index)), errors='coerce').fillna(0).astype(int),
+            'tables': pd.to_numeric(df.get('tables', pd.Series([0] * len(df), index=df.index)), errors='coerce').fillna(0).astype(int),
+            'attributes': pd.to_numeric(df.get('attributes', pd.Series([0] * len(df), index=df.index)), errors='coerce').fillna(0).astype(int),
+        })
+        normalized['dataset'] = dataset_name
+        return normalized
     
     try:
-        # Load BIRD Training queries
-        with open('datasets/bird_training_queries.json', 'r', encoding='utf-8') as f:
-            q_data = pd.DataFrame(json.load(f))
-            q_data['dataset'] = 'BIRD Training'
-            queries_list.append(q_data)
-        
-        # Load BIRD Developer queries from real benchmark source
-        with open('dev.json', 'r', encoding='utf-8') as f:
-            raw_dev = pd.DataFrame(json.load(f))
-            difficulty_map = {
-                'simple': 0,
-                'moderate': 1,
-                'challenging': 2,
-            }
-            q_data_developer = pd.DataFrame({
-                'id': raw_dev['question_id'],
-                'query': raw_dev['question'],
-                'database': raw_dev['db_id'],
-                'complexity': raw_dev['difficulty'].map(difficulty_map).fillna(0).astype(int),
-                'length': 0,
-                'tables': 0,
-                'attributes': 0,
-            })
-            q_data_developer['dataset'] = 'BIRD Developer'
+        dataset_sources = [
+            ('BIRD Training', 'datasets_files/BIRD/train.json', 'datasets_files/BIRD/train_tables.json'),
+            ('BIRD Developer', 'datasets_files/BIRD/dev.json', 'datasets_files/BIRD/dev_tables.json'),
+            ('SPIDER Training', 'datasets_files/SPIDER/train_spider.json', 'datasets_files/SPIDER/tables.json'),
+            ('SPIDER Training', 'datasets_files/SPIDER/train_others.json', 'datasets_files/SPIDER/tables.json'),
+            ('SPIDER Dev', 'datasets_files/SPIDER/dev.json', 'datasets_files/SPIDER/tables.json'),
+            ('SPIDER Test', 'datasets_files/SPIDER/test.json', 'datasets_files/SPIDER/test_tables.json'),
+        ]
 
-            # Precomputed once (cached): use reconstructed general id to map table/attribute counts.
-            dev_stats = load_bird_dev_ground_truth_stats()
-            q_data_developer['g_id'] = (
-                q_data_developer['dataset'].astype(str) + '|' +
-                q_data_developer['database'].astype(str) + '|' +
-                q_data_developer['id'].astype(str)
+        for dataset_name, dataset_path, tables_path in dataset_sources:
+            with open(dataset_path, 'r', encoding='utf-8') as f:
+                raw_df = pd.DataFrame(json.load(f))
+
+            normalized_df = _normalize_queries(raw_df, dataset_name)
+            split_stats = load_dataset_sql_stats(dataset_name, dataset_path, tables_path)
+
+            normalized_df['g_id'] = (
+                normalized_df['dataset'].astype(str) + '|' +
+                normalized_df['database'].astype(str) + '|' +
+                normalized_df['id'].astype(str)
             ).apply(string_to_deterministic_int)
-            q_data_developer['tables'] = q_data_developer['g_id'].map(
-                lambda gid: dev_stats.get(gid, {}).get('tables', 0)
+
+            normalized_df['tables'] = normalized_df['g_id'].map(
+                lambda gid: split_stats.get(gid, {}).get('tables', 0)
             ).astype(int)
-            q_data_developer['attributes'] = q_data_developer['g_id'].map(
-                lambda gid: dev_stats.get(gid, {}).get('attributes', 0)
+            normalized_df['attributes'] = normalized_df['g_id'].map(
+                lambda gid: split_stats.get(gid, {}).get('attributes', 0)
             ).astype(int)
-            q_data_developer['length'] = q_data_developer['g_id'].map(
-                lambda gid: dev_stats.get(gid, {}).get('length', 0)
+            normalized_df['length'] = normalized_df['g_id'].map(
+                lambda gid: split_stats.get(gid, {}).get('length', 0)
             ).astype(int)
 
-            queries_list.append(q_data_developer)
-        
-        # Load SPIDER queries
-        with open('datasets/spider_queries.json', 'r', encoding='utf-8') as f:
-            q_data_spider = pd.DataFrame(json.load(f))
-            q_data_spider['dataset'] = 'SPIDER'
-            queries_list.append(q_data_spider)
+            queries_list.append(normalized_df)
         
         # Concatenate all dataframes at once for efficiency
         queries_data = pd.concat(queries_list, ignore_index=True) if queries_list else pd.DataFrame()
@@ -528,7 +563,9 @@ model_colors = {
 dataset_colors = {
     "BIRD Training": "#E85D04",  # Dark orange
     "BIRD Developer": "#FF9500",  # Bright orange
-    "SPIDER": "#FFBB66"  # Light orange
+    "SPIDER Training": "#FFBB66",  # Light orange
+    "SPIDER Dev": "#FFC98A",  # Pale orange
+    "SPIDER Test": "#FFD9AD",  # Soft orange
 }
 
 metric_colors = {
@@ -560,7 +597,9 @@ st.markdown("""
 /* Dataset colors - Orange family */
 .color-bird-training { color: #E85D04 !important; }
 .color-bird-developer { color: #FF9500 !important; }
-.color-spider { color: #FFBB66 !important; }
+.color-spider-training { color: #FFBB66 !important; }
+.color-spider-dev { color: #FFC98A !important; }
+.color-spider-test { color: #FFD9AD !important; }
 
 /* Metric colors - Green family */
 .color-schema-precision { color: #0F4C81 !important; }
@@ -578,7 +617,9 @@ st.markdown("""
 /* Background colors for conditional boxes */
 .bg-bird-training { background-color: rgba(232, 93, 4, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-bird-developer { background-color: rgba(255, 149, 0, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-spider { background-color: rgba(255, 187, 102, 0.15) !important; padding: 10px; border-radius: 5px; }
+.bg-spider-training { background-color: rgba(255, 187, 102, 0.15) !important; padding: 10px; border-radius: 5px; }
+.bg-spider-dev { background-color: rgba(255, 201, 138, 0.15) !important; padding: 10px; border-radius: 5px; }
+.bg-spider-test { background-color: rgba(255, 217, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-tdex { background-color: rgba(106, 27, 154, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-embedding-selector { background-color: rgba(142, 68, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
 .bg-llms-ensemble { background-color: rgba(171, 71, 188, 0.15) !important; padding: 10px; border-radius: 5px; }
@@ -647,7 +688,9 @@ def get_dataset_class(dataset_name):
     class_map = {
         "BIRD Training": "color-bird-training",
         "BIRD Developer": "color-bird-developer",
-        "SPIDER": "color-spider"
+        "SPIDER Training": "color-spider-training",
+        "SPIDER Dev": "color-spider-dev",
+        "SPIDER Test": "color-spider-test",
     }
     return class_map.get(dataset_name, "")
 
@@ -655,7 +698,9 @@ def get_dataset_bg_class(dataset_name):
     class_map = {
         "BIRD Training": "bg-bird-training",
         "BIRD Developer": "bg-bird-developer",
-        "SPIDER": "bg-spider"
+        "SPIDER Training": "bg-spider-training",
+        "SPIDER Dev": "bg-spider-dev",
+        "SPIDER Test": "bg-spider-test",
     }
     return class_map.get(dataset_name, "")
 
@@ -800,8 +845,8 @@ with columns[0]:
     st.header("Widgets")
     st.write("Hover over the widgets to see the tooltips.")
     
-    # Crea tre sottocodonne per i widgets
-    sub_cols = st.columns(3)
+    # Crea quattro sottocolonne: la terza ospita i widget Database.
+    sub_cols = st.columns(4)
     
     # Initialize shared state
     selected_databases = []
@@ -851,26 +896,44 @@ with columns[0]:
                 if checked:
                     selected_datasets.append(dataset)
             st.caption("Prototype flag: only BIRD Developer has real pairwise datapoints right now.")
-        
-        # Selezione Database (parte 1) - Dinamica basata sui dataset selezionati
-        if len(selected_datasets) > 0 and selected_datasets[0] in databases:
-            dataset_name = selected_datasets[0]
-            css_class = get_dataset_class(dataset_name)
-            bg_class = get_dataset_bg_class(dataset_name)
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>', unsafe_allow_html=True)
-                for i, db in enumerate(databases[dataset_name]):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"db_part1_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="{bg_class}">{db}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_databases.append(db)
-    
-    # SECONDA SOTTO-COLONNA
+
+    # Database
     with sub_cols[1]:
+        # Selezione Database: un widget per dataset, ognuno con altezza fissa e scroll interno.
+        if not selected_datasets:
+            with st.container(border=True):
+                st.markdown('<div class="tooltip-container"><h3>Selezione Database</h3><span class="tooltip-text">Select databases grouped by selected datasets</span></div>', unsafe_allow_html=True)
+                st.info("Seleziona almeno un dataset per mostrare i database disponibili")
+        else:
+            for dataset_idx, dataset_name in enumerate(selected_datasets):
+                if dataset_name not in databases:
+                    continue
+
+                css_class = get_dataset_class(dataset_name)
+                bg_class = get_dataset_bg_class(dataset_name)
+                dataset_dbs = databases[dataset_name]
+
+                with st.container(border=True, height=250):
+                    st.markdown(
+                        f'<div class="tooltip-container"><h3 class="{css_class}">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>',
+                        unsafe_allow_html=True
+                    )
+                    for db_idx, db in enumerate(dataset_dbs):
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox(
+                                "",
+                                value=False,
+                                key=f"db_scroll_{dataset_idx}_{db_idx}",
+                                label_visibility="collapsed"
+                            )
+                        with col2:
+                            st.markdown(f'<div class="{bg_class}">{db}</div>', unsafe_allow_html=True)
+                        if checked:
+                            selected_databases.append(db)
+
+    # TERZA SOTTO-COLONNA
+    with sub_cols[2]:
         all_four_models_selected = set(selected_models) == set(models)
 
         # Selezione Selettore
@@ -927,27 +990,8 @@ with columns[0]:
             if single_selector_enabled:
                 st.warning("Prototype flag: DeepSeek selector bars are available only when all four candidate models are selected.")
 
-        # Selezione Database (parte 2) - Dinamica basata sui dataset selezionati
-        if len(selected_datasets) > 1 and selected_datasets[1] in databases:
-            dataset_name = selected_datasets[1]
-            css_class = get_dataset_class(dataset_name)
-            bg_class = get_dataset_bg_class(dataset_name)
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>', unsafe_allow_html=True)
-                for i, db in enumerate(databases[dataset_name]):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"db_part2_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="{bg_class}">{db}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_databases.append(db)
-        
-        
-    
-    # TERZA SOTTO-COLONNA
-    with sub_cols[2]:
+    # QUARTA SOTTO-COLONNA (terza originale)
+    with sub_cols[3]:
         
         # Collect all queries from selected datasets and databases
         all_selected_queries = collect_all_selected_queries(selected_datasets, selected_databases)
@@ -1035,8 +1079,8 @@ with columns[0]:
             if total_active > 0:
                 with st.expander(f"Visualizza query attive ({total_active})"):
                     # Display as dataframe with selected columns
-                    display_df = active_queries[['id', 'query', 'dataset', 'database', 'complexity', 'length', 'tables', 'attributes']].copy()
-                    display_df.columns = ['ID', 'Query', 'Dataset', 'Database', 'Complessità', 'Lunghezza', 'Tabelle', 'Attributi']
+                    display_df = active_queries[['id', 'query', 'dataset', 'database', 'length', 'tables', 'attributes']].copy()
+                    display_df.columns = ['ID', 'Query', 'Dataset', 'Database', 'Lunghezza', 'Tabelle', 'Attributi']
                     
                     st.dataframe(
                         display_df,
@@ -1089,23 +1133,7 @@ with columns[0]:
                             mime="text/csv"
                         )
                         
-        # Terzo dataset se presente (in colonna 2 o 3)
-        if len(selected_datasets) > 2 and selected_datasets[2] in databases:
-            dataset_name = selected_datasets[2]
-            css_class = get_dataset_class(dataset_name)
-            bg_class = get_dataset_bg_class(dataset_name)
-            
-            with st.container(border=True):
-                st.markdown(f'<div class="tooltip-container"><h3 class="{css_class}">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>', unsafe_allow_html=True)
-                for i, db in enumerate(databases[dataset_name]):
-                    col1, col2 = st.columns([0.1, 0.9])
-                    with col1:
-                        checked = st.checkbox("", value=False, key=f"db_part2_alt_{i}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown(f'<div class="{bg_class}">{db}</div>', unsafe_allow_html=True)
-                    if checked:
-                        selected_databases.append(db)
-        
+
 with columns[1]:
     st.header("Barplot")
 

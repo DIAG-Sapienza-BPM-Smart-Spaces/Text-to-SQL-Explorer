@@ -7,6 +7,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from langchain.schema.messages import HumanMessage
+from common_utils import (
+    atomic_dump_json,
+    build_pairwise_index,
+    extract_ground_truth_comparison,
+)
 
 # Calculate paths and ensure project root is in sys.path
 _CURRENT_FILE = Path(__file__).resolve()
@@ -209,16 +214,6 @@ def judge(database, query, query_id, schema_file, evidence, judge_arguments, mod
     return result
 
 
-def _atomic_dump_json(path: Path, payload: Dict[str, Any]) -> None:
-    """Write JSON atomically to reduce risk of corrupted files on interruption."""
-    with _FILE_WRITE_LOCK:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(path.suffix + ".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
-        tmp_path.replace(path)
-
-
 def _judge_single_row_job(
     *,
     judge_model: str,
@@ -274,47 +269,6 @@ def _judge_single_row_job(
         return error_result, True
 
 
-def _build_pairwise_index(pairwise_payload: Dict[str, Any]) -> Dict[Tuple[str, int], Dict[str, Any]]:
-    """Index pairwise entries by (db_id, question_id)."""
-    index: Dict[Tuple[str, int], Dict[str, Any]] = {}
-
-    for row in pairwise_payload.values():
-        if not isinstance(row, dict):
-            continue
-        db_id = row.get("db_id")
-        question_id = row.get("question_id")
-        if db_id is None or question_id is None:
-            continue
-        index[(str(db_id), int(question_id))] = row
-
-    return index
-
-
-def _extract_ground_truth_comparison(
-    pairwise_entry: Optional[Dict[str, Any]],
-    candidate_model: str,
-) -> Optional[Dict[str, Any]]:
-    """Extract the comparison block for ground_truth vs candidate_model, if present."""
-    if not pairwise_entry:
-        return None
-
-    comparisons = pairwise_entry.get("comparisons", {})
-    if not isinstance(comparisons, dict):
-        return None
-
-    expected_key = f"ground_truth_vs_{candidate_model}"
-    comparison = comparisons.get(expected_key)
-    if isinstance(comparison, dict):
-        return comparison
-
-    # Fallback if key naming varies: locate by system names.
-    for comp in comparisons.values():
-        if not isinstance(comp, dict):
-            continue
-        if comp.get("system1") == "ground_truth" and comp.get("system2") == candidate_model:
-            return comp
-
-    return None
 
 
 def compute_binary_choices_for_sqls(
@@ -342,7 +296,7 @@ def compute_binary_choices_for_sqls(
       loses at most a small tail of unsaved items.
     """
     default_files = {
-        "bird_developer": ("dev_tables.json", "dev.json"),
+        "bird_developer": ("datasets_files/BIRD/dev_tables.json", "datasets_files/BIRD/dev.json"),
     }
     if not schema_file or not query_file:
         alias = (database or "").strip().lower()
@@ -368,7 +322,7 @@ def compute_binary_choices_for_sqls(
 
     pairwise_path = _PROJECT_ROOT / pairwise_file
     pairwise_payload = load_json_file(str(pairwise_path))
-    pairwise_index = _build_pairwise_index(pairwise_payload)
+    pairwise_index = build_pairwise_index(pairwise_payload)
     
     if verbose >= 1:
         print(f"[batch] Current project root: {_PROJECT_ROOT}")
@@ -420,7 +374,7 @@ def compute_binary_choices_for_sqls(
                     continue
                 if "execution_vs_ground_truth" not in r:
                     pairwise_entry = pairwise_index.get((str(db_id), int(qid)))
-                    r["execution_vs_ground_truth"] = _extract_ground_truth_comparison(pairwise_entry, candidate_model)
+                    r["execution_vs_ground_truth"] = extract_ground_truth_comparison(pairwise_entry, candidate_model)
                     backfilled_count += 1
             for r in existing_results:
                 db_id = r.get("db_id")
@@ -495,7 +449,7 @@ def compute_binary_choices_for_sqls(
 
             query_meta = per_db_question_index[db_key].get(int(question_id))
             pairwise_entry = pairwise_index.get((db_key, int(question_id)))
-            gt_execution = _extract_ground_truth_comparison(pairwise_entry, candidate_model)
+            gt_execution = extract_ground_truth_comparison(pairwise_entry, candidate_model)
             if gt_execution is None:
                 gt_metadata_missing += 1
                 if verbose >= 2:
@@ -557,7 +511,7 @@ def compute_binary_choices_for_sqls(
                     "total_sql_rows": len(sql_rows),
                     "results": results,
                 }
-                _atomic_dump_json(output_file, payload)
+                atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
                 if verbose >= 1:
                     print(f"[batch] checkpoint saved — {len(results)}/{len(sql_rows)} done for model={candidate_model}")
                 processed_since_save = 0
@@ -604,7 +558,7 @@ def compute_binary_choices_for_sqls(
                             "total_sql_rows": len(sql_rows),
                             "results": results,
                         }
-                        _atomic_dump_json(output_file, payload)
+                        atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
                         raise RuntimeError(
                             f"Stopping on first error for model={candidate_model} "
                             f"db={row_result.get('db_id')} question_id={row_result.get('question_id')}"
@@ -620,7 +574,7 @@ def compute_binary_choices_for_sqls(
                             "total_sql_rows": len(sql_rows),
                             "results": results,
                         }
-                        _atomic_dump_json(output_file, payload)
+                        atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
                         if verbose >= 1:
                             print(f"[batch] checkpoint saved — {len(results)}/{len(sql_rows)} done for model={candidate_model}")
                         processed_since_save = 0
@@ -634,7 +588,7 @@ def compute_binary_choices_for_sqls(
             "total_sql_rows": len(sql_rows),
             "results": results,
         }
-        _atomic_dump_json(output_file, payload)
+        atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
 
         if verbose >= 0:
             print(f"[batch] ✓ model={candidate_model} complete — {len(results)}/{len(sql_rows)} judged, {errors_count} error(s) → {output_file.name}")

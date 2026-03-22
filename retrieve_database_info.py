@@ -1,6 +1,7 @@
-import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+from common_utils import load_json
 
 
 # Resolve project root (parent folder of this file's directory)
@@ -9,11 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 def load_json_file(filepath: str) -> List[Dict]:
     """Load JSON data from a file, resolving relative to project root."""
-    path = Path(filepath)
-    if not path.is_absolute():
-        path = BASE_DIR / path
-    with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    return load_json(filepath, base_dir=BASE_DIR)
 
 
 def get_schema_info(db_id: str, tables_file: str = 'train_tables.json') -> Optional[Dict[str, Any]]:

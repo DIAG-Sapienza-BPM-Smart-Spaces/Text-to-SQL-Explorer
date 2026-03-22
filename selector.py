@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.schema.messages import HumanMessage
+from common_utils import (
+	atomic_dump_json,
+	build_pairwise_index,
+	extract_ground_truth_comparison,
+)
 
 # Calculate paths and ensure project root is in sys.path
 _CURRENT_FILE = Path(__file__).resolve()
@@ -151,58 +156,6 @@ def initialize_llm(model: str, api_key: str, verbose: int = 1):
 		"At the moment initialize_llm supports only 'deepseek-chat'. "
 		"You can still pass a custom pre-initialized llm object to compute_single_selector_choices()."
 	)
-
-
-def _atomic_dump_json(path: Path, payload: Dict[str, Any]) -> None:
-	"""Write JSON atomically to reduce risk of corrupted files on interruption."""
-	with _FILE_WRITE_LOCK:
-		path.parent.mkdir(parents=True, exist_ok=True)
-		tmp_path = path.with_suffix(path.suffix + ".tmp")
-		with open(tmp_path, "w", encoding="utf-8") as f:
-			json.dump(payload, f, indent=2, ensure_ascii=False)
-		tmp_path.replace(path)
-
-
-def _build_pairwise_index(pairwise_payload: Dict[str, Any]) -> Dict[Tuple[str, int], Dict[str, Any]]:
-	"""Index pairwise entries by (db_id, question_id)."""
-	index: Dict[Tuple[str, int], Dict[str, Any]] = {}
-
-	for row in pairwise_payload.values():
-		if not isinstance(row, dict):
-			continue
-		db_id = row.get("db_id")
-		question_id = row.get("question_id")
-		if db_id is None or question_id is None:
-			continue
-		index[(str(db_id), int(question_id))] = row
-
-	return index
-
-
-def _extract_ground_truth_comparison(
-	pairwise_entry: Optional[Dict[str, Any]],
-	candidate_model: str,
-) -> Optional[Dict[str, Any]]:
-	"""Extract comparison block for ground_truth vs candidate_model, if present."""
-	if not pairwise_entry:
-		return None
-
-	comparisons = pairwise_entry.get("comparisons", {})
-	if not isinstance(comparisons, dict):
-		return None
-
-	expected_key = f"ground_truth_vs_{candidate_model}"
-	comparison = comparisons.get(expected_key)
-	if isinstance(comparison, dict):
-		return comparison
-
-	for comp in comparisons.values():
-		if not isinstance(comp, dict):
-			continue
-		if comp.get("system1") == "ground_truth" and comp.get("system2") == candidate_model:
-			return comp
-
-	return None
 
 
 def _extract_reasoning_and_choice(response_content: str) -> Tuple[str, str]:
@@ -372,7 +325,7 @@ def _select_single_row_job(
 
 		selected_model = selection_result["selected_candidate_model"]
 		selected_vs_gt = (
-			_extract_ground_truth_comparison(pairwise_entry, selected_model)
+			extract_ground_truth_comparison(pairwise_entry, selected_model)
 			if selected_model
 			else None
 		)
@@ -470,7 +423,7 @@ def compute_single_selector_choices(
 		raise ValueError("num_threads must be >= 1")
 
 	default_files = {
-		"bird_developer": ("dev_tables.json", "dev.json"),
+		"bird_developer": ("datasets_files/BIRD/dev_tables.json", "datasets_files/BIRD/dev.json"),
 	}
 	if not schema_file or not query_file:
 		alias = (database or "").strip().lower()
@@ -492,7 +445,7 @@ def compute_single_selector_choices(
 		)
 
 	pairwise_payload = load_json_file(str(_PROJECT_ROOT / pairwise_file))
-	pairwise_index = _build_pairwise_index(pairwise_payload)
+	pairwise_index = build_pairwise_index(pairwise_payload)
 
 	query_rows = load_json_file(str(_PROJECT_ROOT / query_file))
 	query_index: Dict[Tuple[str, int], Dict[str, Any]] = {}
@@ -630,7 +583,7 @@ def compute_single_selector_choices(
 				"total_queries": total,
 				"results": results,
 			}
-			_atomic_dump_json(output_file, payload)
+			atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
 			if verbose >= 1:
 				print(f"[batch] checkpoint saved — {len(results)}/{total} processed")
 			processed_since_save = 0
@@ -677,7 +630,7 @@ def compute_single_selector_choices(
 						"total_queries": total,
 						"results": results,
 					}
-					_atomic_dump_json(output_file, payload)
+					atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
 					raise RuntimeError(
 						f"Stopping on first error for db={row_result.get('db_id')} "
 						f"question_id={row_result.get('question_id')}"
@@ -695,7 +648,7 @@ def compute_single_selector_choices(
 						"total_queries": total,
 						"results": results,
 					}
-					_atomic_dump_json(output_file, payload)
+					atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
 					if verbose >= 1:
 						print(f"[batch] checkpoint saved — {len(results)}/{total} processed")
 					processed_since_save = 0
@@ -711,7 +664,7 @@ def compute_single_selector_choices(
 		"total_queries": total,
 		"results": results,
 	}
-	_atomic_dump_json(output_file, payload)
+	atomic_dump_json(output_file, payload, lock=_FILE_WRITE_LOCK)
 
 	if verbose >= 0:
 		print(f"[batch] Done — {len(results)}/{total} processed, errors={errors_count}")

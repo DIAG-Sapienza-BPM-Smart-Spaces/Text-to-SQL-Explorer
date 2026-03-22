@@ -1,4 +1,3 @@
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -15,13 +14,14 @@ from embedding import (
 	load_embedder,
 	parse_and_normalize_sql,
 )
+from common_utils import atomic_dump_json, load_json as load_json_file
 
 
 ROOT = Path(__file__).resolve().parent
 SQLS_DIR = ROOT / "sqls"
 PAIRWISE_PATH = ROOT / "all_pairwise_comparisons.json"
 OUTPUT_PATH = ROOT / "embedding_pipeline_selection_results.json"
-GROUND_TRUTH_PATH = ROOT / "dev.json"
+GROUND_TRUTH_PATH = ROOT / "datasets_files" / "BIRD" / "dev.json"
 GROUND_TRUTH_AGGREGATE_PATH = ROOT / "embedding_ground_truth_cluster_stats.json"
 DEFAULT_SAVE_EVERY = 10
 DEFAULT_MAX_WORKERS = 7
@@ -34,15 +34,11 @@ def log_message(verbose: int, level: int, message: str) -> None:
 
 
 def load_json(path: Path) -> Any:
-	with path.open("r", encoding="utf-8") as f:
-		return json.load(f)
+	return load_json_file(path)
 
 
 def save_json(path: Path, payload: Any) -> None:
-	tmp_path = path.with_suffix(path.suffix + ".tmp")
-	with tmp_path.open("w", encoding="utf-8") as f:
-		json.dump(payload, f, ensure_ascii=False, indent=2)
-	tmp_path.replace(path)
+	atomic_dump_json(path, payload)
 
 
 def load_existing_results(path: Path, verbose: int = 1) -> list[dict[str, Any]]:
