@@ -1,0 +1,12 @@
+{
+  "total_rows": 1534,
+  "rows_with_ground_truth_analysis": 0,
+  "rows_without_ground_truth_analysis": 1534,
+  "ground_truth_joins_biggest_cluster_count": 0,
+  "ground_truth_joins_biggest_cluster_rate": 0.0,
+  "avg_similarity_ground_truth_to_biggest_cluster_centroid": null,
+  "avg_similarity_ground_truth_to_selected_candidate": null,
+  "avg_distance_ground_truth_to_biggest_cluster_centroid": null,
+  "avg_distance_ground_truth_to_selected_candidate": null,
+  "per_selected_model": {}
+}

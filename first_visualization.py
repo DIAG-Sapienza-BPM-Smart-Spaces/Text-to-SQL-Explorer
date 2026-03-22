@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import hashlib
+import re
 
 models = ["DeepSeek Chat", "Qwen2.5 Coder 32B", "Qwen3 Coder 30B", "Cogito 70b"]
 datasets = ["BIRD Training", "BIRD Developer", "SPIDER"]
@@ -32,6 +33,164 @@ DATASET_FLAGS = {
     "BIRD Developer": True,
     "SPIDER": False,
 }
+
+SQL_KEYWORDS = {
+    "select", "from", "where", "join", "inner", "left", "right", "full", "outer", "on", "and", "or",
+    "not", "in", "is", "null", "as", "case", "when", "then", "else", "end", "distinct", "order",
+    "by", "group", "having", "limit", "offset", "union", "all", "exists", "between", "like", "asc",
+    "desc", "cast", "real", "integer", "count", "sum", "avg", "min", "max", "over", "partition",
+    "rank", "row_number", "dense_rank", "with", "recursive", "cross", "using", "into"
+}
+
+
+def string_to_deterministic_int(s):
+    """Convert a string to a deterministic integer using SHA256 hash.
+    This allows faster equality comparisons than string comparisons.
+    """
+    return int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16)
+
+
+def _clean_identifier(token):
+    if token is None:
+        return ""
+    cleaned = str(token).strip().strip('`"[]').strip().lower()
+    return cleaned
+
+
+def _extract_sql_identifier_candidates(sql_text):
+    """Extract potential identifier tokens (tables/columns) from SQL text."""
+    if not sql_text:
+        return set()
+
+    candidates = set()
+
+    # Quoted identifiers: `Column Name`, "Column Name", [Column Name]
+    for token in re.findall(r'`([^`]+)`|"([^"]+)"|\[([^\]]+)\]', sql_text):
+        value = next((part for part in token if part), "")
+        cleaned = _clean_identifier(value)
+        if cleaned and cleaned != "*":
+            candidates.add(cleaned)
+
+    # FROM/JOIN table references
+    for table_name in re.findall(r'\b(?:from|join)\s+([a-zA-Z_][\w]*)\b', sql_text, flags=re.IGNORECASE):
+        cleaned = _clean_identifier(table_name)
+        if cleaned:
+            candidates.add(cleaned)
+
+    # Dotted references like T1.column_name
+    for column_name in re.findall(r'\b[a-zA-Z_][\w]*\s*\.\s*([a-zA-Z_][\w]*)\b', sql_text):
+        cleaned = _clean_identifier(column_name)
+        if cleaned:
+            candidates.add(cleaned)
+
+    # Unqualified identifiers (later filtered through schema names and SQL keywords)
+    for token in re.findall(r'\b[a-zA-Z_][\w]*\b', sql_text):
+        cleaned = _clean_identifier(token)
+        if cleaned and cleaned not in SQL_KEYWORDS:
+            candidates.add(cleaned)
+
+    return candidates
+
+
+def _build_schema_lookup(dev_tables_payload):
+    """Build DB-specific sets of table and column names."""
+    lookup = {}
+    if not isinstance(dev_tables_payload, list):
+        return lookup
+
+    for db_schema in dev_tables_payload:
+        if not isinstance(db_schema, dict):
+            continue
+
+        db_id = db_schema.get('db_id')
+        if not db_id:
+            continue
+
+        table_names = {
+            _clean_identifier(name)
+            for name in db_schema.get('table_names_original', [])
+            if _clean_identifier(name)
+        }
+
+        column_names = set()
+        for col in db_schema.get('column_names_original', []):
+            if not isinstance(col, (list, tuple)) or len(col) < 2:
+                continue
+            col_name = _clean_identifier(col[1])
+            if col_name and col_name != "*":
+                column_names.add(col_name)
+
+        lookup[db_id] = {
+            'tables': table_names,
+            'columns': column_names,
+        }
+
+    return lookup
+
+
+def _compute_sql_length_bucket(values, num_buckets=4):
+    """Convert raw SQL lengths to discrete buckets (0..num_buckets-1)."""
+    if not values:
+        return []
+
+    if len(set(values)) <= 1:
+        return [0] * len(values)
+
+    # Rank first to avoid duplicate-edge issues in qcut, then bucket by quantiles.
+    ranked = pd.Series(values).rank(method='first')
+    effective_buckets = max(1, min(num_buckets, len(values)))
+    buckets = pd.qcut(ranked, q=effective_buckets, labels=False)
+    return buckets.astype(int).tolist()
+
+
+@st.cache_data
+def load_bird_dev_ground_truth_stats():
+    """Precompute table/attribute/length stats from BIRD Developer ground-truth SQL once."""
+    dev_path = 'dev.json'
+    tables_path = 'dev_tables.json'
+    if not os.path.exists(dev_path) or not os.path.exists(tables_path):
+        return {}
+
+    with open(dev_path, 'r', encoding='utf-8') as f:
+        dev_payload = json.load(f)
+    with open(tables_path, 'r', encoding='utf-8') as f:
+        dev_tables_payload = json.load(f)
+
+    schema_lookup = _build_schema_lookup(dev_tables_payload)
+    stats_by_gid = {}
+    pending_rows = []
+    raw_lengths = []
+
+    for row in dev_payload:
+        if not isinstance(row, dict):
+            continue
+
+        db_id = row.get('db_id')
+        query_id = row.get('question_id')
+        sql_text = row.get('ground_truth') or row.get('SQL') or ""
+
+        schema_info = schema_lookup.get(db_id, {})
+        table_set = schema_info.get('tables', set())
+        column_set = schema_info.get('columns', set())
+
+        tokens = _extract_sql_identifier_candidates(str(sql_text))
+        table_count = len(tokens.intersection(table_set)) if table_set else 0
+        attribute_count = len(tokens.intersection(column_set)) if column_set else 0
+        sql_length = len(re.findall(r'\S+', str(sql_text)))
+
+        gid = string_to_deterministic_int(f"BIRD Developer|{db_id}|{query_id}")
+        pending_rows.append((gid, table_count, attribute_count, sql_length))
+        raw_lengths.append(sql_length)
+
+    discrete_lengths = _compute_sql_length_bucket(raw_lengths, num_buckets=4)
+    for idx, (gid, table_count, attribute_count, _) in enumerate(pending_rows):
+        stats_by_gid[gid] = {
+            'tables': int(table_count),
+            'attributes': int(attribute_count),
+            'length': int(discrete_lengths[idx]) if idx < len(discrete_lengths) else 0,
+        }
+
+    return stats_by_gid
 
 # Load query datasets
 @st.cache_data
@@ -64,6 +223,24 @@ def load_queries():
                 'attributes': 0,
             })
             q_data_developer['dataset'] = 'BIRD Developer'
+
+            # Precomputed once (cached): use reconstructed general id to map table/attribute counts.
+            dev_stats = load_bird_dev_ground_truth_stats()
+            q_data_developer['g_id'] = (
+                q_data_developer['dataset'].astype(str) + '|' +
+                q_data_developer['database'].astype(str) + '|' +
+                q_data_developer['id'].astype(str)
+            ).apply(string_to_deterministic_int)
+            q_data_developer['tables'] = q_data_developer['g_id'].map(
+                lambda gid: dev_stats.get(gid, {}).get('tables', 0)
+            ).astype(int)
+            q_data_developer['attributes'] = q_data_developer['g_id'].map(
+                lambda gid: dev_stats.get(gid, {}).get('attributes', 0)
+            ).astype(int)
+            q_data_developer['length'] = q_data_developer['g_id'].map(
+                lambda gid: dev_stats.get(gid, {}).get('length', 0)
+            ).astype(int)
+
             queries_list.append(q_data_developer)
         
         # Load SPIDER queries
@@ -226,18 +403,21 @@ all_results = load_model_results()
 all_selector_results = load_selector_ground_truth_results()
 all_embedding_selector_results = load_embedding_selector_results()
 
-def string_to_deterministic_int(s):
-    """Convert a string to a deterministic integer using SHA256 hash.
-    This allows faster equality comparisons than string comparisons.
-    """
-    return int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16)
-
 # Create a general_id column in both dataframes for quick lookup using vectorized operations
 if not all_queries.empty:
-    # Vectorized string concatenation and hash creation
-    all_queries['g_id'] = (all_queries['dataset'].astype(str) + '|' + 
-                           all_queries['database'].astype(str) + '|' + 
-                           all_queries['id'].astype(str)).apply(string_to_deterministic_int)
+    # Vectorized string concatenation and hash creation when g_id is not already present.
+    if 'g_id' not in all_queries.columns:
+        all_queries['g_id'] = (all_queries['dataset'].astype(str) + '|' + 
+                               all_queries['database'].astype(str) + '|' + 
+                               all_queries['id'].astype(str)).apply(string_to_deterministic_int)
+    else:
+        missing_gid_mask = all_queries['g_id'].isna()
+        if missing_gid_mask.any():
+            all_queries.loc[missing_gid_mask, 'g_id'] = (
+                all_queries.loc[missing_gid_mask, 'dataset'].astype(str) + '|' +
+                all_queries.loc[missing_gid_mask, 'database'].astype(str) + '|' +
+                all_queries.loc[missing_gid_mask, 'id'].astype(str)
+            ).apply(string_to_deterministic_int)
 if not all_results.empty:    
     # Vectorized string concatenation and hash creation
     all_results['g_id'] = (all_results['dataset'].astype(str) + '|' + 
@@ -498,13 +678,12 @@ def get_selector_class(selector_key):
     }
     return class_map.get(selector_key, "")
 
-def filter_queries(queries_df, complexity_range, length_range, tables_range, attributes_range=None):
+def filter_queries(queries_df, length_range, tables_range, attributes_range=None):
     """
-    Filter queries based on complexity, length, tables, and attributes involved ranges.
+    Filter queries based on length, tables, and attributes involved ranges.
     
     Args:
         queries_df: DataFrame of queries
-        complexity_range: Tuple (min, max) for complexity
         length_range: Tuple (min, max) for length
         tables_range: Tuple (min, max) for tables
         attributes_range: Tuple (min, max) for attributes (optional)
@@ -517,8 +696,6 @@ def filter_queries(queries_df, complexity_range, length_range, tables_range, att
     
     # Use pandas boolean indexing for efficient filtering
     mask = (
-        (queries_df['complexity'] >= complexity_range[0]) & 
-        (queries_df['complexity'] <= complexity_range[1]) &
         (queries_df['length'] >= length_range[0]) & 
         (queries_df['length'] <= length_range[1]) &
         (queries_df['tables'] >= tables_range[0]) & 
@@ -590,7 +767,6 @@ def get_query_ranges(queries_df):
     """
     if queries_df.empty:
         return {
-            'complexity': (0, 3),
             'length': (0, 3),
             'tables': (0, 30),
             'attributes': (0, 30)
@@ -598,7 +774,6 @@ def get_query_ranges(queries_df):
     
     # Use pandas vectorized min/max operations
     return {
-        'complexity': (int(queries_df['complexity'].min()), int(queries_df['complexity'].max())),
         'length': (int(queries_df['length'].min()), int(queries_df['length'].max())),
         'tables': (int(queries_df['tables'].min()), int(queries_df['tables'].max())),
         'attributes': (int(queries_df['attributes'].min()) if 'attributes' in queries_df.columns else 0, 
@@ -780,32 +955,22 @@ with columns[0]:
         
         # Selettori Query
         with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Selettori Query</h3><span class="tooltip-text">Filter queries by complexity, length, and table involvement</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="tooltip-container"><h3>Selettori Query</h3><span class="tooltip-text">Filter queries by discrete SQL length, table involvement, and attribute involvement</span></div>', unsafe_allow_html=True)
             
             # Show available query info
             if len(all_selected_queries) > 0:
                 st.caption(f"📚 Query disponibili: {len(all_selected_queries)} | "
-                          f"Range disponibili - C:[{query_ranges['complexity'][0]}-{query_ranges['complexity'][1]}] "
-                          f"L:[{query_ranges['length'][0]}-{query_ranges['length'][1]}] "
+                          f"Range disponibili - L:[{query_ranges['length'][0]}-{query_ranges['length'][1]}] "
                           f"T:[{query_ranges['tables'][0]}-{query_ranges['tables'][1]}] "
                           f"A:[{query_ranges['attributes'][0]}-{query_ranges['attributes'][1]}]")
             else:
                 st.info("ℹ️ Seleziona dataset e database per vedere le query disponibili")
 
-            complexity_min, complexity_max, complexity_default = normalize_slider_bounds(query_ranges['complexity'])
             length_min, length_max, length_default = normalize_slider_bounds(query_ranges['length'])
             tables_min, tables_max, tables_default = normalize_slider_bounds(query_ranges['tables'])
             attributes_min, attributes_max, attributes_default = normalize_slider_bounds(query_ranges['attributes'])
             
             # Dynamic sliders based on available query ranges
-            complexity_range = st.slider(
-                "Complessità", 
-                min_value=complexity_min,
-                max_value=complexity_max,
-                value=complexity_default,
-                key="complexity_slider",
-                help="Filtra per complessità della query (0=semplice, 3=complessa)"
-            )
             length_range = st.slider(
                 "Lunghezza", 
                 min_value=length_min,
@@ -834,7 +999,6 @@ with columns[0]:
             # Filter queries based on slider values
             active_queries = filter_queries(
                 all_selected_queries, 
-                complexity_range, 
                 length_range, 
                 tables_range, 
                 attributes_range
@@ -924,13 +1088,7 @@ with columns[0]:
                             file_name="active_results.csv",
                             mime="text/csv"
                         )
-
-        
-        # Modificatori Esecuzione
-        with st.container(border=True):
-            st.markdown('<div class="tooltip-container"><h3>Modificatori Esecuzione</h3><span class="tooltip-text">Modify execution parameters and configurations</span></div>', unsafe_allow_html=True)
-            mod_schema_gt = st.checkbox("Schema Ground Truth", value=False, key="mod_schema_gt")
-        
+                        
         # Terzo dataset se presente (in colonna 2 o 3)
         if len(selected_datasets) > 2 and selected_datasets[2] in databases:
             dataset_name = selected_datasets[2]

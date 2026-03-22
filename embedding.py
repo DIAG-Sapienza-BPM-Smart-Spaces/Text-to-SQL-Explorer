@@ -1,4 +1,5 @@
 from pathlib import Path
+import threading
 from typing import Optional
 
 import numpy as np
@@ -9,6 +10,7 @@ from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
 EMBEDDER_ID = "s2593817/sft-sql-embedding"
 CACHE_DIR = Path(__file__).resolve().parent / ".hf_cache"
 _EMBEDDER: Optional[SentenceTransformer] = None
+_EMBEDDER_LOCK = threading.Lock()
 
 
 def log_message(verbose: int, level: int, message: str) -> None:
@@ -20,11 +22,16 @@ def log_message(verbose: int, level: int, message: str) -> None:
 def load_embedder(embedder_id: str = EMBEDDER_ID, verbose: int = 1) -> SentenceTransformer:
     """Load the embedder once and reuse it from memory."""
     global _EMBEDDER
+
+    # Double-checked locking avoids concurrent initialization races
+    # when multiple worker threads call into the embedder at startup.
     if _EMBEDDER is None:
-        log_message(verbose, 1, f"[INFO] Loading embedder: {embedder_id}")
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        _EMBEDDER = SentenceTransformer(embedder_id, cache_folder=str(CACHE_DIR))
-        log_message(verbose, 1, f"[INFO] Embedder loaded and cached at {CACHE_DIR}")
+        with _EMBEDDER_LOCK:
+            if _EMBEDDER is None:
+                log_message(verbose, 1, f"[INFO] Loading embedder: {embedder_id}")
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                _EMBEDDER = SentenceTransformer(embedder_id, cache_folder=str(CACHE_DIR))
+                log_message(verbose, 1, f"[INFO] Embedder loaded and cached at {CACHE_DIR}")
     else:
         log_message(verbose, 2, "[DEBUG] Using cached embedder")
     return _EMBEDDER
