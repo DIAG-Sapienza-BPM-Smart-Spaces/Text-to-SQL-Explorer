@@ -111,6 +111,52 @@ def compute_similarity_groups(vectors, similarity_matrix, verbose: int = 1):
     return groups
 
 
+def compute_similarity_groups_pairwise(vectors, similarity_matrix, verbose: int = 1, threshold: Optional[float] = None):
+    """Group vectors using pairwise connectivity above a similarity threshold.
+
+    This is a single-link strategy over the thresholded similarity graph:
+    two vectors belong to the same group if they are connected by a chain
+    of pairwise similarities >= threshold.
+    """
+    if threshold is None:
+        threshold = compute_average_and_std_of_similarities(similarity_matrix)[0]
+    log_message(verbose, 1, f"[INFO] Grouping vectors (pairwise) with threshold: {threshold:.4f}")
+
+    num_vectors = len(vectors)
+    groups = []
+    visited = set()
+
+    for start_idx in range(num_vectors):
+        if start_idx in visited:
+            continue
+
+        # Expand a connected component using BFS over thresholded edges.
+        queue = [start_idx]
+        visited.add(start_idx)
+        component_indices = []
+
+        while queue:
+            current = queue.pop(0)
+            component_indices.append(current)
+
+            for neighbor in range(num_vectors):
+                if neighbor in visited:
+                    continue
+                if similarity_matrix[current][neighbor] >= threshold:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        group = [(idx, vectors[idx]) for idx in component_indices]
+        groups.append(group)
+
+    if verbose >= 2:
+        print(f"[DEBUG] Created {len(groups)} groups (pairwise)")
+        for idx, g in enumerate(groups):
+            print(f"[DEBUG]   Group {idx}: {len(g)} vectors")
+
+    return groups
+
+
 def get_vector_closest_to_centroid(group):
     """Get the vector closest to the centroid of a group."""
     centroid = np.mean([v for _, v in group], axis=0)
