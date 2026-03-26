@@ -44,12 +44,12 @@ Rework the pipeline around new inputs/outputs while preserving the core ideas: u
 - c:/Users/adria/GitHub/Demo-Paper/binary_visualization.py — second visualization metric field alignment to canonical five.
 - c:/Users/adria/GitHub/Demo-Paper/generate_fake_visualization_data.py — expanded fake metric generation across all models with canonical metrics.
 - c:/Users/adria/GitHub/Demo-Paper/selector.py — pairwise judge orchestration and persisted per-query matchup outputs.
-- c:/Users/adria/GitHub/Demo-Paper/selector_pre_calculation.py — derived leaderboard/wins summaries from raw pairwise judgments.
+- c:/Users/adria/GitHub/Demo-Paper/selector_pre_calculation.py — derived leaderboard/wins summaries from raw pairwise judgments. Must be renamed to reflect new role as real-time selector from precomputed data and given set of candidate models.
 - c:/Users/adria/GitHub/Demo-Paper/common_utils.py — shared schema helpers, pairwise indexing, canonical metric utilities.
 - c:/Users/adria/GitHub/Demo-Paper/embedding.py — reuse compute_similarity_groups_pairwise and add persistence helpers as needed.
 - c:/Users/adria/GitHub/Demo-Paper/embedding_pipeline_selection.py — switch to precomputed artifacts and artifact integrity checks.
 - c:/Users/adria/GitHub/Demo-Paper/metrics_results/ — authoritative real BIRD Development metrics input.
-- c:/Users/adria/GitHub/Demo-Paper/sqls/ — candidate SQL source per model.
+- c:/Users/adria/GitHub/Demo-Paper/sqls/ — candidate SQL source per model. Should not be used.
 - c:/Users/adria/GitHub/Demo-Paper/README.md — pipeline and artifact contract documentation.
 - c:/Users/adria/GitHub/Demo-Paper (new folders) — precomputed/, pairwise_results/, fake_data/selector_pairwise/.
 
@@ -74,5 +74,5 @@ Rework the pipeline around new inputs/outputs while preserving the core ideas: u
 **Further Considerations**
 
 1. Judge prompt/versioning: persist prompt template version and judge model/version in each pairwise record for reproducibility.
-2. Tie policy: define deterministic tie handling for leaderboard rank (for example win_rate, then strength-of-schedule, then stable model-order fallback).
+2. Efficiency of offline processing: consider batch processing for pairwise judgments and embedding precomputations to speed up pipeline runs. During heavy offline computation phases (selector pairwise generation, embedding precompute), provide progress logging and estimated time to completion, as well as checkpointing intermediate results to allow resumption in case of interruptions.
 3. Performance limits: bound real-time clustering latency in UI by caching active-subset matrix slices and avoiding repeated full-matrix scans.
