@@ -51,7 +51,7 @@ def clean_sql_query(sql: Any) -> str:
 
 def get_source_sql(record: dict[str, Any]) -> Any:
 	"""Pick the best SQL source field available in a record."""
-	for key in ("extracted_sql", "generated_sql", "sql", "query"):
+	for key in ("candidate_sql", "extracted_sql", "generated_sql", "sql", "query"):
 		if key in record and record[key] is not None:
 			return record[key]
 	return None

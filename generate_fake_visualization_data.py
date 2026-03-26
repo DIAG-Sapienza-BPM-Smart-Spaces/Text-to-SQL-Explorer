@@ -1,4 +1,3 @@
-import hashlib
 import json
 from dataclasses import dataclass
 from itertools import combinations
@@ -6,7 +5,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Optional
 
-from common_utils import collect_models_from_metric_files
+from common_utils import collect_models_from_metric_files, fast_hash_hex
 
 
 ROOT = Path(__file__).resolve().parent
@@ -61,7 +60,7 @@ class QueryRow:
 
 def stable_unit(*parts: object) -> float:
     raw = "|".join(str(p) for p in parts)
-    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    digest = fast_hash_hex(raw, digest_size=16)
     return int(digest[:16], 16) / float(16**16 - 1)
 
 

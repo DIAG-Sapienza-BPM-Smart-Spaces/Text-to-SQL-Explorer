@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import os
 import pandas as pd
-import hashlib
 import re
 import random
 import numpy as np
@@ -10,6 +9,8 @@ import numpy as np
 from common_utils import (
     CANONICAL_METRICS,
     collect_models_from_metric_files,
+    fast_hash_hex,
+    fast_hash_int,
     metric_to_percentage,
     readable_model_label,
 )
@@ -94,7 +95,7 @@ def _build_file_signature(file_paths, extra_tag=""):
         else:
             chunks.append(f"{abs_path}|missing")
     raw = "||".join(chunks)
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return fast_hash_hex(raw, digest_size=16)
 
 SQL_KEYWORDS = {
     "select", "from", "where", "join", "inner", "left", "right", "full", "outer", "on", "and", "or",
@@ -106,10 +107,10 @@ SQL_KEYWORDS = {
 
 
 def string_to_deterministic_int(s):
-    """Convert a string to a deterministic integer using SHA256 hash.
+    """Convert a string to a deterministic integer using fast deterministic hash.
     This allows faster equality comparisons than string comparisons.
     """
-    return int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16)
+    return fast_hash_int(s, digest_size=16)
 
 
 def _clean_identifier(token):
@@ -212,7 +213,7 @@ def load_dataset_sql_stats(dataset_name, dataset_path, tables_path):
         return {}
 
     _ensure_cache_dir()
-    cache_id = hashlib.sha256(f"{dataset_name}|{dataset_path}|{tables_path}".encode('utf-8')).hexdigest()[:16]
+    cache_id = fast_hash_hex(f"{dataset_name}|{dataset_path}|{tables_path}", digest_size=8)
     cache_path = os.path.join(CACHE_DIR, f"sql_stats_{cache_id}.json")
     cache_signature = _build_file_signature([dataset_path, tables_path], extra_tag=f"sql_stats|{dataset_name}")
 
@@ -450,18 +451,30 @@ def load_bird_metrics_lookup():
 @st.cache_data
 def load_precomputed_embedding_assets():
     """Load precomputed similarity index and embeddings vector table."""
-    index_path = os.path.join('precomputed', 'similarity', 'bird_dev_similarity_index.json')
-    emb_path = os.path.join('precomputed', 'embeddings', 'sql_embeddings.npz')
+    candidate_index_paths = [
+        os.path.join('precomputed', 'similarity', 'bird_dev_similarity_index.json'),
+        os.path.join('precomputed', 'similarity', 'similarity_index.json'),
+    ]
 
-    if not os.path.exists(index_path) or not os.path.exists(emb_path):
-        return {}, None
-
+    index_path = next((p for p in candidate_index_paths if os.path.exists(p)), None)
     try:
         index_payload = load_json_artifact(index_path)
-        emb_payload = load_embeddings_artifact(emb_path)
-        return index_payload, emb_payload.get('vectors')
+        return index_payload
     except Exception:
         return {}, None
+
+
+def _dataset_to_similarity_token(dataset_name):
+    mapping = {
+        'BIRD Developer': 'bird_dev',
+        'BIRD Training': 'bird_training',
+        'SPIDER Dev': 'spider_dev',
+        'SPIDER Training': 'spider_training',
+        'SPIDER Test': 'spider_test',
+    }
+    if dataset_name in mapping:
+        return mapping[dataset_name]
+    return str(dataset_name).strip().lower().replace(' ', '_') if dataset_name else ''
 
 
 def _pick_selected_model_from_leaderboard(row, selector_model, dataset_name):
@@ -791,8 +804,8 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
     if active_queries.empty:
         return []
 
-    precomputed_index, embeddings_vectors = load_precomputed_embedding_assets()
-    if not precomputed_index or embeddings_vectors is None:
+    precomputed_index = load_precomputed_embedding_assets()
+    if not precomputed_index:
         return []
 
     queries_index = precomputed_index.get('queries', {}) if isinstance(precomputed_index, dict) else {}
@@ -807,8 +820,13 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
 
         db_id = str(qrow.get('database', ''))
         question_id = int(qrow.get('id'))
-        query_key = f"{db_id}|{question_id}"
+        dataset_token = _dataset_to_similarity_token(dataset_name)
+        query_key = f"{dataset_token}|{db_id}|{question_id}"
         entry = queries_index.get(query_key)
+        if not isinstance(entry, dict):
+            # Compatibility fallback for legacy index keys without dataset prefix.
+            legacy_key = f"{db_id}|{question_id}"
+            entry = queries_index.get(legacy_key)
         if not isinstance(entry, dict):
             continue
 
@@ -835,14 +853,9 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
             continue
 
         sub_matrix = full_matrix[np.ix_(selected_positions, selected_positions)]
-        sub_sql_ids = [int(sql_ids_for_query[i]) for i in selected_positions]
-        sub_vectors = [embeddings_vectors[sql_id] for sql_id in sub_sql_ids]
-
-        if len(sub_vectors) < 2:
-            continue
 
         threshold = float(sub_matrix[np.triu_indices_from(sub_matrix, k=1)].mean()) if sub_matrix.shape[0] > 1 else 1.0
-        groups = compute_similarity_groups_pairwise(sub_vectors, sub_matrix, verbose=0, threshold=threshold)
+        groups = compute_similarity_groups_pairwise(sub_matrix, verbose=0, threshold=threshold)
         biggest_group = max(groups, key=len)
         selected_local_idx = get_vector_closest_to_centroid(biggest_group)
         if selected_local_idx is None:
@@ -923,13 +936,6 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         realtime_rows = compute_realtime_embedding_selector_rows(active_queries, selected_models, selected_metric_keys)
         if realtime_rows:
             selector_rows.extend(realtime_rows)
-        elif not all_embedding_selector_results.empty:
-            embedding_selector_df = all_embedding_selector_results[
-                all_embedding_selector_results['g_id'].isin(active_g_ids) &
-                all_embedding_selector_results['metric'].isin(selected_metric_keys)
-            ].copy()
-            if not embedding_selector_df.empty:
-                selector_rows.extend(embedding_selector_df.to_dict(orient='records'))
 
     if selector_rows:
         selector_df = pd.DataFrame(selector_rows)

@@ -1,4 +1,3 @@
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Optional
@@ -21,9 +20,9 @@ from common_utils import atomic_dump_json, load_json as load_json_file
 
 ROOT = Path(__file__).resolve().parent
 SQLS_DIR = ROOT / "candidates"
-PAIRWISE_PATH = ROOT / "all_pairwise_comparisons.json"
 OUTPUT_PATH = ROOT / "embedding_pipeline_selection_results.json"
 GROUND_TRUTH_PATH = ROOT / "datasets_files" / "BIRD" / "dev.json"
+METRICS_RESULTS_DIR = ROOT / "metrics_results"
 GROUND_TRUTH_AGGREGATE_PATH = ROOT / "embedding_ground_truth_cluster_stats.json"
 DEFAULT_SAVE_EVERY = 10
 DEFAULT_MAX_WORKERS = 7
@@ -84,7 +83,7 @@ def model_name_from_file(file_path: Path) -> str:
 
 def pick_candidate_sql(rec: dict[str, Any]) -> Optional[str]:
 	"""Pick the best available SQL text from a result record."""
-	for key in ("clean_sql", "extracted_sql", "generated_sql"):
+	for key in ("clean_sql", "candidate_sql", "extracted_sql", "generated_sql"):
 		value = rec.get(key)
 		if isinstance(value, str):
 			text = value.strip()
@@ -212,64 +211,54 @@ def load_ground_truth_sql_by_general_id(
 	return ground_truth_by_general_id
 
 
-def load_pairwise_index(path: Path, verbose: int = 1) -> dict[int, dict[str, Any]]:
-	raw = load_json(path)
-	index: dict[int, dict[str, Any]] = {}
+def load_ground_truth_metrics_lookup(metrics_dir: Path, verbose: int = 1) -> dict[tuple[str, int, str], dict[str, Any]]:
+	"""Load BIRD dev canonical metrics keyed by (db_id, question_id, model)."""
+	lookup: dict[tuple[str, int, str], dict[str, Any]] = {}
+	if not metrics_dir.exists():
+		log_message(verbose, 1, f"Metrics directory not found: {metrics_dir}")
+		return lookup
 
-	if isinstance(raw, dict):
-		log_message(verbose, 2, "[DEBUG] Pairwise JSON is an object keyed by general_id")
-		for key, value in raw.items():
-			if not isinstance(value, dict):
-				continue
-
-			gid = to_int_or_none(key)
-			if gid is None:
-				gid = to_int_or_none(value.get("general_id"))
-
-			if gid is not None and gid >= 0:
-				index[gid] = value
-	elif isinstance(raw, list):
-		log_message(verbose, 2, "[DEBUG] Pairwise JSON is a list of objects")
-		for value in raw:
-			if not isinstance(value, dict):
-				continue
-
-			gid = to_int_or_none(value.get("general_id"))
-			if gid is None:
-				continue
-
-			index[gid] = value
-
-	return index
-
-
-def get_ground_truth_metrics(entry: dict[str, Any], selected_model: str) -> Optional[dict[str, Any]]:
-	comparisons = entry.get("comparisons") if isinstance(entry, dict) else None
-	if not isinstance(comparisons, dict):
-		return None
-
-	for comp_key, comp in comparisons.items():
-		if not isinstance(comp, dict):
+	pattern = "evaluation_sql_metrics_*_vs_ground_truth.json"
+	for path in sorted(metrics_dir.glob(pattern)):
+		model_name = path.name[len("evaluation_sql_metrics_"):-len("_vs_ground_truth.json")]
+		payload = load_json(path)
+		if not isinstance(payload, list):
 			continue
-		s1 = comp.get("system1")
-		s2 = comp.get("system2")
-		if {s1, s2} == {"ground_truth", selected_model}:
-			metrics = {
-				"comparison_key": comp_key,
-				"system1": s1,
-				"system2": s2,
-				"schema_precision": comp.get("schema_precision"),
-				"schema_recall": comp.get("schema_recall"),
-				"cell_value_accuracy": comp.get("cell_value_accuracy"),
-				"row_set_jaccard": comp.get("row_set_jaccard"),
-				"execution_accuracy": comp.get("execution_accuracy"),
-				"f1_score": comp.get("f1_score"),
-				"comparison_performed": comp.get("comparison_performed"),
-				"fast_path": comp.get("fast_path"),
-			}
-			return metrics
 
-	return None
+		for row in payload:
+			if not isinstance(row, dict):
+				continue
+			db_id = row.get("db_id")
+			qid = to_int_or_none(row.get("question_id"))
+			if db_id is None or qid is None:
+				continue
+
+			lookup[(str(db_id), int(qid), model_name)] = {
+				"system1": "ground_truth",
+				"system2": model_name,
+				"execution_accuracy": row.get("execution_accuracy"),
+				"exact_match": row.get("exact_match"),
+				"sql_f1_score": row.get("sql_f1_score"),
+				"response_schema_f1_score": row.get("response_schema_f1_score"),
+				"cell_f1_score": row.get("cell_f1_score"),
+			}
+
+	log_message(verbose, 1, f"Loaded ground-truth metrics lookup entries: {len(lookup)}")
+	return lookup
+
+
+def get_ground_truth_metrics(
+	*,
+	db_id: Any,
+	question_id: Any,
+	selected_model: str,
+	metrics_lookup: dict[tuple[str, int, str], dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+	"""Resolve selected-model metrics versus ground truth from metrics lookup."""
+	qid = to_int_or_none(question_id)
+	if db_id is None or qid is None or not selected_model:
+		return None
+	return metrics_lookup.get((str(db_id), int(qid), str(selected_model)))
 
 
 def select_candidate_from_embeddings(
@@ -489,8 +478,8 @@ def build_ground_truth_cluster_aggregate(output_rows: list[dict[str, Any]]) -> d
 def process_single_general_id(
 	general_id: int,
 	candidates: list[dict[str, Any]],
-	pairwise_entry: dict[str, Any],
 	ground_truth_entry: Optional[dict[str, Any]],
+	metrics_lookup: dict[tuple[str, int, str], dict[str, Any]],
 	precomputed_index: Optional[dict[str, Any]] = None,
 	verbose: int = 1,
 ) -> Optional[dict[str, Any]]:
@@ -523,7 +512,12 @@ def process_single_general_id(
 		candidates[selected_index],
 	)
 
-	gt_metrics = get_ground_truth_metrics(pairwise_entry, selected_candidate["model"])
+	gt_metrics = get_ground_truth_metrics(
+		db_id=selected_candidate.get("db_id"),
+		question_id=selected_candidate.get("question_id"),
+		selected_model=selected_candidate["model"],
+		metrics_lookup=metrics_lookup,
+	)
 
 	ground_truth_cluster_analysis = None
 	ground_truth_sql = None
@@ -561,8 +555,8 @@ def process_single_general_id(
 
 def build_selection_results(
 	candidates_by_general_id: dict[int, list[dict[str, Any]]],
-	pairwise_index: dict[int, dict[str, Any]],
 	ground_truth_by_general_id: dict[int, dict[str, Any]],
+	metrics_lookup: dict[tuple[str, int, str], dict[str, Any]],
 	output_path: Path,
 	existing_results: Optional[list[dict[str, Any]]] = None,
 	save_every: int = 1,
@@ -614,8 +608,8 @@ def build_selection_results(
 				process_single_general_id,
 				general_id,
 				candidates_by_general_id[general_id],
-				pairwise_index.get(general_id, {}),
 				ground_truth_by_general_id.get(general_id),
+				metrics_lookup,
 				precomputed_index,
 				verbose,
 			): general_id
@@ -662,19 +656,15 @@ def build_selection_results(
 
 def main(verbose: int = 1) -> None:
 	if not SQLS_DIR.exists():
-		raise FileNotFoundError(f"Missing sqls directory: {SQLS_DIR}")
-	if not PAIRWISE_PATH.exists():
-		raise FileNotFoundError(f"Missing pairwise file: {PAIRWISE_PATH}")
+		raise FileNotFoundError(f"Missing candidates directory: {SQLS_DIR}")
 	if not GROUND_TRUTH_PATH.exists():
 		raise FileNotFoundError(f"Missing ground truth file: {GROUND_TRUTH_PATH}")
+	if not METRICS_RESULTS_DIR.exists():
+		raise FileNotFoundError(f"Missing metrics results directory: {METRICS_RESULTS_DIR}")
 
 	log_message(verbose, 1, "Loading SQL candidates...")
 	candidates_by_general_id = load_sql_candidates(SQLS_DIR, verbose=verbose)
 	log_message(verbose, 1, f"Loaded candidates for {len(candidates_by_general_id)} general_id values")
-
-	log_message(verbose, 1, "Loading pairwise comparisons...")
-	pairwise_index = load_pairwise_index(PAIRWISE_PATH, verbose=verbose)
-	log_message(verbose, 1, f"Loaded pairwise entries: {len(pairwise_index)}")
 
 	log_message(verbose, 1, "Loading ground truth SQL from dev.json...")
 	ground_truth_by_general_id = load_ground_truth_sql_by_general_id(
@@ -686,14 +676,17 @@ def main(verbose: int = 1) -> None:
 	log_message(verbose, 1, "Loading existing output for resume...")
 	existing_results = load_existing_results(OUTPUT_PATH, verbose=verbose)
 
+	log_message(verbose, 1, "Loading ground-truth metrics lookup...")
+	metrics_lookup = load_ground_truth_metrics_lookup(METRICS_RESULTS_DIR, verbose=verbose)
+
 	log_message(verbose, 1, "Loading precomputed similarity index...")
 	precomputed_index = load_precomputed_similarity_index(PRECOMPUTED_SIMILARITY_INDEX, verbose=verbose)
 
 	log_message(verbose, 1, "Running embedding-based selection pipeline...")
 	output_rows = build_selection_results(
 		candidates_by_general_id,
-		pairwise_index,
 		ground_truth_by_general_id,
+		metrics_lookup,
 		output_path=OUTPUT_PATH,
 		existing_results=existing_results,
 		save_every=DEFAULT_SAVE_EVERY,

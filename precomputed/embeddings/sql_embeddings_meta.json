@@ -1,0 +1,6 @@
+{
+  "embedder_id": "s2593817/sft-sql-embedding",
+  "num_sql": 10685,
+  "vector_dim": 768,
+  "num_lookup_keys": 10685
+}

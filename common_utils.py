@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -15,19 +16,18 @@ CANONICAL_METRICS = [
     "cell_f1_score",
 ]
 
-# Legacy names are still accepted so old artifacts remain readable.
-LEGACY_TO_CANONICAL_METRIC = {
-    "schema_precision": "response_schema_f1_score",
-    "schema_recall": "response_schema_f1_score",
-    "cell_value_accuracy": "cell_f1_score",
-    "row_set_jaccard": "sql_f1_score",
-    "f1_score": "sql_f1_score",
-    "execution_accuracy": "execution_accuracy",
-    "exact_match": "exact_match",
-    "sql_f1_score": "sql_f1_score",
-    "response_schema_f1_score": "response_schema_f1_score",
-    "cell_f1_score": "cell_f1_score",
-}
+
+def fast_hash_hex(text: str, digest_size: int = 16) -> str:
+    """Return a deterministic lightweight hex digest for non-security use cases."""
+    size = max(4, min(int(digest_size), 32))
+    return hashlib.blake2b(str(text).encode("utf-8"), digest_size=size).hexdigest()
+
+
+def fast_hash_int(text: str, digest_size: int = 16) -> int:
+    """Return a deterministic integer hash for IDs/cache keys (non-cryptographic)."""
+    size = max(4, min(int(digest_size), 32))
+    digest = hashlib.blake2b(str(text).encode("utf-8"), digest_size=size).digest()
+    return int.from_bytes(digest, byteorder="big", signed=False)
 
 
 def resolve_path(path: str | Path, base_dir: Optional[Path] = None) -> Path:
@@ -69,14 +69,6 @@ def atomic_dump_json(
             _write()
     else:
         _write()
-
-
-def canonical_metric_name(metric_name: str) -> Optional[str]:
-    """Map any known metric key to the canonical metric contract."""
-    if metric_name is None:
-        return None
-    return LEGACY_TO_CANONICAL_METRIC.get(str(metric_name).strip())
-
 
 def metric_to_percentage(value: Any) -> Optional[float]:
     """Convert a scalar metric from [0,1] to [0,100] when needed."""

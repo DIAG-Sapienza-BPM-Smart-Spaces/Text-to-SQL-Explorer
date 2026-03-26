@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import json
 import threading
@@ -161,7 +163,7 @@ def compute_similarity_groups(vectors, similarity_matrix, verbose: int = 1):
     return groups
 
 
-def compute_similarity_groups_pairwise(vectors, similarity_matrix, verbose: int = 1, threshold: Optional[float] = None):
+def compute_similarity_groups_pairwise(similarity_matrix, verbose: int = 1, threshold: Optional[float] = None):
     """Group vectors using pairwise connectivity above a similarity threshold.
 
     This is a single-link strategy over the thresholded similarity graph:
@@ -172,7 +174,7 @@ def compute_similarity_groups_pairwise(vectors, similarity_matrix, verbose: int 
         threshold = compute_average_and_std_of_similarities(similarity_matrix)[0]
     log_message(verbose, 1, f"[INFO] Grouping vectors (pairwise) with threshold: {threshold:.4f}")
 
-    num_vectors = len(vectors)
+    num_vectors = len(similarity_matrix)
     groups = []
     visited = set()
 
@@ -196,7 +198,7 @@ def compute_similarity_groups_pairwise(vectors, similarity_matrix, verbose: int 
                     visited.add(neighbor)
                     queue.append(neighbor)
 
-        group = [(idx, vectors[idx]) for idx in component_indices]
+        group = [(idx, similarity_matrix[idx]) for idx in component_indices]
         groups.append(group)
 
     if verbose >= 2:
