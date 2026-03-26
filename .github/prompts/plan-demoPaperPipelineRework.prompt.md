@@ -21,7 +21,7 @@ Rework the pipeline around new inputs/outputs while preserving the core ideas: u
 15. Modify selector pipeline to create pairwise prompts per query over candidate-model pairs (candidate-only comparisons, excluding ground_truth from pairwise competition), using a judge model (default deepseek-chat now, configurable later). _depends on 1-4_
 16. Persist all pairwise judgments per query (winner/loser/tie metadata, prompt/response traces as appropriate, participating model IDs), without collapsing to only final selected candidate. _depends on 15_
 17. Define new function to derive per-query leaderboard from persisted pairwise outcomes (wins, losses, ties, win rate, optional tie-break policy) and expose chosen candidate as a derived view, not the sole stored output. _depends on 16_
-18. Update first visualization to load pairwise outcomes and compute the metrics of the LLM-as-selector given the chosen candidates group and metrics. _depends on 16-17 + Phase 2 loader changes_
+18. Update first visualization to load pairwise outcomes and compute the metrics of the LLM-as-selector given the chosen candidates group and metrics. Ties between best-performing candidates are broken at random. _depends on 16-17 + Phase 2 loader changes_
 19. Phase 5: Embedder pipeline split into precompute + interactive clustering.
 20. Add a precompute stage that encodes SQL candidates for all models and saves reusable embeddings to npz + json metadata. _depends on 1-4_
 21. Precompute similarity matrices for BIRD Development query/model candidate sets and persist them as reusable artifacts. _depends on 20_
