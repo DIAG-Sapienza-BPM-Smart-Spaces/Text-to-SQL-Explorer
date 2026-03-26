@@ -277,7 +277,7 @@ def compute_binary_choices_for_sqls(
     database: str = "bird_developer",
     schema_file: str = None,
     query_file: str = None,
-    sqls_dir: str = "sqls",
+    sqls_dir: str = "candidates",
     output_dir: str = "binary_choices",
     pairwise_file: str = "all_pairwise_comparisons.json",
     resume: bool = True,

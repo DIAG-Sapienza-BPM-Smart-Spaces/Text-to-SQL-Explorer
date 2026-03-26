@@ -1,42 +1,39 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Optional
+
+from common_utils import collect_models_from_metric_files
 
 
 ROOT = Path(__file__).resolve().parent
 
 METRICS = [
-    "schema_precision",
-    "schema_recall",
-    "cell_value_accuracy",
-    "row_set_jaccard",
     "execution_accuracy",
-    "f1_score",
+    "exact_match",
+    "sql_f1_score",
+    "response_schema_f1_score",
+    "cell_f1_score",
 ]
 
-CANDIDATE_MODELS = [
+DISCOVERED_MODELS = [m for m in collect_models_from_metric_files(ROOT / "metrics_results") if m != "ground_truth"]
+
+CANDIDATE_MODELS = DISCOVERED_MODELS or [
     "cogito_70b",
     "deepseek-chat",
     "qwen2.5-coder_32b",
     "qwen3-coder_30b",
+    "codellama_70b",
+    "codestral_22b",
+    "sqlcoder_15b",
 ]
 
-SELECTOR_MODELS = [
-    "deepseek-chat",
-    "cogito_70b",
-    "qwen2.5-coder_32b",
-    "qwen3-coder_30b",
-]
+SELECTOR_MODELS = list(CANDIDATE_MODELS)
 
-JUDGE_MODELS = [
-    "deepseek-chat",
-    "cogito_70b",
-    "qwen2.5-coder_32b",
-    "qwen3-coder_30b",
-]
+JUDGE_MODELS = list(CANDIDATE_MODELS)
 
 DATASET_SOURCES = [
     ("BIRD Training", "datasets_files/BIRD/train.json", "SQL"),
@@ -50,6 +47,7 @@ DATASET_SOURCES = [
 # True data is only available for BIRD Developer in current visualization pipeline.
 FAKE_EXECUTION_EXCLUDED_DATASETS = {"BIRD Developer"}
 FAKE_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
+FAKE_PAIRWISE_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
 
 
 @dataclass
@@ -141,6 +139,9 @@ def compute_fake_metrics(dataset: str, model: str, query: QueryRow) -> Dict[str,
         "qwen3-coder_30b": 0.71,
         "qwen2.5-coder_32b": 0.69,
         "cogito_70b": 0.67,
+        "codestral_22b": 0.68,
+        "sqlcoder_15b": 0.63,
+        "codellama_70b": 0.64,
     }.get(model, 0.65)
 
     dataset_adjust = {
@@ -160,12 +161,11 @@ def compute_fake_metrics(dataset: str, model: str, query: QueryRow) -> Dict[str,
     for metric in METRICS:
         metric_jitter = stable_between(-0.10, 0.10, dataset, model, query.db_id, query.question_id, metric)
         metric_bias = {
-            "schema_precision": 0.01,
-            "schema_recall": -0.01,
-            "cell_value_accuracy": -0.04,
-            "row_set_jaccard": -0.02,
             "execution_accuracy": -0.05,
-            "f1_score": 0.00,
+            "exact_match": -0.04,
+            "sql_f1_score": 0.01,
+            "response_schema_f1_score": 0.02,
+            "cell_f1_score": -0.03,
         }[metric]
         metrics[metric] = round(clamp01(base + metric_bias + metric_jitter), 4)
 
@@ -266,6 +266,63 @@ def generate_fake_embedding_data(queries: List[QueryRow]) -> List[dict]:
     return rows
 
 
+def _pairwise_winner(metrics_a: Dict[str, float], metrics_b: Dict[str, float], tie_break_key: str) -> str:
+    score_a = mean(metrics_a.values()) + stable_between(-0.02, 0.02, tie_break_key, "a")
+    score_b = mean(metrics_b.values()) + stable_between(-0.02, 0.02, tie_break_key, "b")
+    if abs(score_a - score_b) <= 0.005:
+        return "tie"
+    return "model_a" if score_a > score_b else "model_b"
+
+
+def generate_fake_selector_pairwise_data(queries: List[QueryRow]) -> List[dict]:
+    rows: List[dict] = []
+
+    for judge_model in JUDGE_MODELS:
+        for q in queries:
+            if q.dataset in FAKE_PAIRWISE_SELECTOR_EXCLUDED_DATASETS:
+                continue
+
+            pairwise_rows = []
+            for model_a, model_b in combinations(CANDIDATE_MODELS, 2):
+                metrics_a = compute_fake_metrics(q.dataset, model_a, q)
+                metrics_b = compute_fake_metrics(q.dataset, model_b, q)
+                winner_token = _pairwise_winner(
+                    metrics_a,
+                    metrics_b,
+                    tie_break_key=f"{judge_model}|{q.dataset}|{q.db_id}|{q.question_id}|{model_a}|{model_b}",
+                )
+                winner = "tie"
+                if winner_token == "model_a":
+                    winner = model_a
+                elif winner_token == "model_b":
+                    winner = model_b
+
+                pairwise_rows.append(
+                    {
+                        "model_a": model_a,
+                        "model_b": model_b,
+                        "winner": winner,
+                        "judge_model": judge_model,
+                        "reasoning": f"Synthetic pairwise judgment for {model_a} vs {model_b}.",
+                        "metrics_a": metrics_a,
+                        "metrics_b": metrics_b,
+                    }
+                )
+
+            rows.append(
+                {
+                    "dataset": q.dataset,
+                    "question_id": q.question_id,
+                    "db_id": q.db_id,
+                    "judge_model": judge_model,
+                    "candidate_models": CANDIDATE_MODELS,
+                    "pairwise_judgments": pairwise_rows,
+                }
+            )
+
+    return rows
+
+
 def generate_fake_binary_data(queries: List[QueryRow]) -> List[dict]:
     rows: List[dict] = []
 
@@ -276,7 +333,7 @@ def generate_fake_binary_data(queries: List[QueryRow]) -> List[dict]:
                     continue
 
                 metrics = compute_fake_metrics(q.dataset, candidate_model, q)
-                accept_score = 0.60 * metrics["execution_accuracy"] + 0.40 * metrics["f1_score"]
+                accept_score = 0.60 * metrics["execution_accuracy"] + 0.40 * metrics["sql_f1_score"]
                 threshold = stable_between(0.45, 0.72, "binary_threshold", judge_model, q.dataset, q.db_id, q.question_id)
                 choice = "ACCEPT" if accept_score >= threshold else "REJECT"
 
@@ -300,7 +357,14 @@ def generate_fake_binary_data(queries: List[QueryRow]) -> List[dict]:
     return rows
 
 
-def write_outputs(output_root: Path, execution_rows: List[dict], selector_rows: List[dict], embedding_rows: List[dict], binary_rows: List[dict]) -> None:
+def write_outputs(
+    output_root: Path,
+    execution_rows: List[dict],
+    selector_rows: List[dict],
+    embedding_rows: List[dict],
+    binary_rows: List[dict],
+    selector_pairwise_rows: List[dict],
+) -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     bundle = {
@@ -314,21 +378,16 @@ def write_outputs(output_root: Path, execution_rows: List[dict], selector_rows: 
         },
         "execution_fake": execution_rows,
         "selector_fake": selector_rows,
+        "selector_pairwise_fake": selector_pairwise_rows,
         "embedding_fake": embedding_rows,
         "binary_fake": binary_rows,
     }
 
     dump_json(output_root / "fake_generation_bundle.json", bundle)
     dump_json(output_root / "fake_execution_metrics.json", execution_rows)
-    dump_json(output_root / "fake_selector_performance.json", selector_rows)
+    dump_json(output_root / "fake_selector_pairwise_results.json", selector_pairwise_rows)
     dump_json(output_root / "fake_embedding_selection.json", embedding_rows)
     dump_json(output_root / "fake_binary_choices.json", binary_rows)
-
-    # Convenience split files by selector model and dataset.
-    for selector_model in SELECTOR_MODELS:
-        selector_subset = [r for r in selector_rows if r["selector_model"] == selector_model]
-        if selector_subset:
-            dump_json(output_root / "selectors" / f"{selector_model}_selector_performance_fake.json", selector_subset)
 
     for dataset in {r["dataset"] for r in embedding_rows}:
         ds_rows = [r for r in embedding_rows if r["dataset"] == dataset]
@@ -340,16 +399,25 @@ def generate_all_fake_data(output_dir: str = "fake_data") -> dict:
 
     execution_rows = generate_fake_execution_data(queries)
     selector_rows = generate_fake_selector_data(queries)
+    selector_pairwise_rows = generate_fake_selector_pairwise_data(queries)
     embedding_rows = generate_fake_embedding_data(queries)
     binary_rows = generate_fake_binary_data(queries)
 
     output_root = ROOT / output_dir
-    write_outputs(output_root, execution_rows, selector_rows, embedding_rows, binary_rows)
+    write_outputs(
+        output_root,
+        execution_rows,
+        selector_rows,
+        embedding_rows,
+        binary_rows,
+        selector_pairwise_rows,
+    )
 
     return {
         "queries_loaded": len(queries),
         "execution_rows": len(execution_rows),
         "selector_rows": len(selector_rows),
+        "selector_pairwise_rows": len(selector_pairwise_rows),
         "embedding_rows": len(embedding_rows),
         "binary_rows": len(binary_rows),
         "output_dir": str(output_root),

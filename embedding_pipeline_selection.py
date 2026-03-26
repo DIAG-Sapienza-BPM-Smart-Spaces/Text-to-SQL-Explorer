@@ -8,23 +8,26 @@ import numpy as np
 from embedding import (
 	compute_average_and_std_of_similarities,
 	compute_cosine_similarity,
-	compute_similarity_groups,
+	compute_similarity_groups_pairwise,
 	compute_similarity_matrix,
 	get_vector_closest_to_centroid,
 	load_embedder,
+	load_json_artifact,
+	load_similarity_matrix_artifact,
 	parse_and_normalize_sql,
 )
 from common_utils import atomic_dump_json, load_json as load_json_file
 
 
 ROOT = Path(__file__).resolve().parent
-SQLS_DIR = ROOT / "sqls"
+SQLS_DIR = ROOT / "candidates"
 PAIRWISE_PATH = ROOT / "all_pairwise_comparisons.json"
 OUTPUT_PATH = ROOT / "embedding_pipeline_selection_results.json"
 GROUND_TRUTH_PATH = ROOT / "datasets_files" / "BIRD" / "dev.json"
 GROUND_TRUTH_AGGREGATE_PATH = ROOT / "embedding_ground_truth_cluster_stats.json"
 DEFAULT_SAVE_EVERY = 10
 DEFAULT_MAX_WORKERS = 7
+PRECOMPUTED_SIMILARITY_INDEX = ROOT / "precomputed" / "similarity" / "bird_dev_similarity_index.json"
 
 
 def log_message(verbose: int, level: int, message: str) -> None:
@@ -271,6 +274,7 @@ def get_ground_truth_metrics(entry: dict[str, Any], selected_model: str) -> Opti
 
 def select_candidate_from_embeddings(
 	sql_queries: list[str],
+	precomputed_similarity_matrix: Optional[np.ndarray] = None,
 	verbose: int = 0,
 ) -> dict[str, Any]:
 	"""Run candidate-only embedding selection and expose clustering internals."""
@@ -279,9 +283,13 @@ def select_candidate_from_embeddings(
 
 	embedder = load_embedder(verbose=verbose)
 	vectors = [embedder.encode(parse_and_normalize_sql(sql, verbose=verbose)) for sql in sql_queries]
-	similarity_matrix = compute_similarity_matrix(vectors)
+	similarity_matrix = (
+		precomputed_similarity_matrix
+		if isinstance(precomputed_similarity_matrix, np.ndarray) and precomputed_similarity_matrix.size > 0
+		else compute_similarity_matrix(vectors)
+	)
 	avg_sim, std_sim = compute_average_and_std_of_similarities(similarity_matrix)
-	groups = compute_similarity_groups(vectors, similarity_matrix, verbose=verbose)
+	groups = compute_similarity_groups_pairwise(vectors, similarity_matrix, verbose=verbose, threshold=avg_sim)
 	biggest_group = max(groups, key=len)
 	selected_index = get_vector_closest_to_centroid(biggest_group)
 	selected_sql = sql_queries[selected_index]
@@ -303,6 +311,46 @@ def select_candidate_from_embeddings(
 		"similarity_threshold": float(avg_sim),
 		"biggest_cluster_indices": [int(index) for index, _ in biggest_group],
 	}
+
+
+def load_precomputed_similarity_index(path: Path, verbose: int = 1) -> dict[str, Any]:
+	"""Load precomputed similarity index if available."""
+	if not path.exists():
+		log_message(verbose, 1, f"Precomputed similarity index not found: {path}")
+		return {}
+	try:
+		return load_json_artifact(path)
+	except Exception as exc:
+		log_message(verbose, 1, f"Failed to load precomputed similarity index: {exc}")
+		return {}
+
+
+def load_query_precomputed_similarity(
+	precomputed_index: dict[str, Any],
+	db_id: str,
+	question_id: int,
+	verbose: int = 0,
+) -> Optional[np.ndarray]:
+	"""Load query-specific precomputed similarity matrix for active candidates."""
+	queries = precomputed_index.get("queries", {}) if isinstance(precomputed_index, dict) else {}
+	key = f"{db_id}|{int(question_id)}"
+	entry = queries.get(key)
+	if not isinstance(entry, dict):
+		return None
+
+	matrix_rel = entry.get("matrix_file")
+	if not isinstance(matrix_rel, str) or not matrix_rel:
+		return None
+
+	matrix_path = ROOT / matrix_rel
+	if not matrix_path.exists():
+		return None
+
+	try:
+		return load_similarity_matrix_artifact(matrix_path)
+	except Exception as exc:
+		log_message(verbose, 2, f"[DEBUG] Failed loading matrix {matrix_path}: {exc}")
+		return None
 
 
 def analyze_ground_truth_embedding(
@@ -443,6 +491,7 @@ def process_single_general_id(
 	candidates: list[dict[str, Any]],
 	pairwise_entry: dict[str, Any],
 	ground_truth_entry: Optional[dict[str, Any]],
+	precomputed_index: Optional[dict[str, Any]] = None,
 	verbose: int = 1,
 ) -> Optional[dict[str, Any]]:
 	if not candidates:
@@ -450,7 +499,18 @@ def process_single_general_id(
 
 	sql_queries = [c["clean_sql"] for c in candidates]
 	embedding_verbose = 0 if verbose == 0 else max(0, verbose - 1)
-	selection = select_candidate_from_embeddings(sql_queries, verbose=embedding_verbose)
+	first_candidate = candidates[0]
+	query_matrix = load_query_precomputed_similarity(
+		precomputed_index or {},
+		str(first_candidate.get("db_id", "")),
+		int(first_candidate.get("question_id", -1)),
+		verbose=embedding_verbose,
+	)
+	selection = select_candidate_from_embeddings(
+		sql_queries,
+		precomputed_similarity_matrix=query_matrix,
+		verbose=embedding_verbose,
+	)
 	stats = selection["selection_stats"]
 	selected_index = stats["selected_index"]
 
@@ -507,6 +567,7 @@ def build_selection_results(
 	existing_results: Optional[list[dict[str, Any]]] = None,
 	save_every: int = 1,
 	max_workers: int = DEFAULT_MAX_WORKERS,
+	precomputed_index: Optional[dict[str, Any]] = None,
 	verbose: int = 1,
 ) -> list[dict[str, Any]]:
 	output_by_general_id: dict[int, dict[str, Any]] = {}
@@ -555,6 +616,7 @@ def build_selection_results(
 				candidates_by_general_id[general_id],
 				pairwise_index.get(general_id, {}),
 				ground_truth_by_general_id.get(general_id),
+				precomputed_index,
 				verbose,
 			): general_id
 			for general_id in general_ids_to_process
@@ -624,6 +686,9 @@ def main(verbose: int = 1) -> None:
 	log_message(verbose, 1, "Loading existing output for resume...")
 	existing_results = load_existing_results(OUTPUT_PATH, verbose=verbose)
 
+	log_message(verbose, 1, "Loading precomputed similarity index...")
+	precomputed_index = load_precomputed_similarity_index(PRECOMPUTED_SIMILARITY_INDEX, verbose=verbose)
+
 	log_message(verbose, 1, "Running embedding-based selection pipeline...")
 	output_rows = build_selection_results(
 		candidates_by_general_id,
@@ -633,6 +698,7 @@ def main(verbose: int = 1) -> None:
 		existing_results=existing_results,
 		save_every=DEFAULT_SAVE_EVERY,
 		max_workers=DEFAULT_MAX_WORKERS,
+		precomputed_index=precomputed_index,
 		verbose=verbose,
 	)
 	log_message(verbose, 1, f"Selection completed for {len(output_rows)} rows")

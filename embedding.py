@@ -1,6 +1,7 @@
 from pathlib import Path
+import json
 import threading
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -45,6 +46,55 @@ def parse_and_normalize_sql(sql: str, verbose: int = 0) -> str:
     except Exception as e:
         log_message(verbose, 2, f"[DEBUG] Error parsing SQL, using original text: {e}")
         return sql
+
+
+def save_embeddings_artifact(path: str | Path, payload: dict[str, Any]) -> None:
+    """Persist embedding payload as compressed npz for fast reuse."""
+    resolved = Path(path)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+
+    sql_ids = np.array(payload.get("sql_ids", []), dtype=np.int64)
+    vectors = np.array(payload.get("vectors", []), dtype=np.float32)
+    np.savez_compressed(resolved, sql_ids=sql_ids, vectors=vectors)
+
+
+def load_embeddings_artifact(path: str | Path) -> dict[str, Any]:
+    """Load embeddings artifact saved by save_embeddings_artifact."""
+    resolved = Path(path)
+    data = np.load(resolved)
+    return {
+        "sql_ids": data["sql_ids"],
+        "vectors": data["vectors"],
+    }
+
+
+def save_similarity_matrix_artifact(path: str | Path, matrix: np.ndarray) -> None:
+    """Persist similarity matrix as compressed npz."""
+    resolved = Path(path)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(resolved, similarity_matrix=np.array(matrix, dtype=np.float32))
+
+
+def load_similarity_matrix_artifact(path: str | Path) -> np.ndarray:
+    """Load similarity matrix saved with save_similarity_matrix_artifact."""
+    resolved = Path(path)
+    data = np.load(resolved)
+    return data["similarity_matrix"]
+
+
+def save_json_artifact(path: str | Path, payload: dict[str, Any]) -> None:
+    """Persist metadata json used by precomputed embedding artifacts."""
+    resolved = Path(path)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    with resolved.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def load_json_artifact(path: str | Path) -> dict[str, Any]:
+    """Load metadata json produced by save_json_artifact."""
+    resolved = Path(path)
+    with resolved.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def compute_cosine_similarity(vec1, vec2):

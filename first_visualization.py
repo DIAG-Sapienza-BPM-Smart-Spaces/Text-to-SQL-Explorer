@@ -4,8 +4,34 @@ import os
 import pandas as pd
 import hashlib
 import re
+import random
+import numpy as np
 
-models = ["DeepSeek Chat", "Qwen2.5 Coder 32B", "Qwen3 Coder 30B", "Cogito 70b"]
+from common_utils import (
+    CANONICAL_METRICS,
+    collect_models_from_metric_files,
+    metric_to_percentage,
+    readable_model_label,
+)
+from embedding import (
+    compute_similarity_groups_pairwise,
+    get_vector_closest_to_centroid,
+    load_embeddings_artifact,
+    load_json_artifact,
+    load_similarity_matrix_artifact,
+)
+
+_SYSTEM_MODELS = collect_models_from_metric_files('metrics_results') or [
+    'deepseek-chat',
+    'qwen2.5-coder_32b',
+    'qwen3-coder_30b',
+    'cogito_70b',
+    'codellama_70b',
+    'codestral_22b',
+    'sqlcoder_15b',
+]
+
+models = [readable_model_label(m) for m in _SYSTEM_MODELS]
 datasets = [
     "BIRD Training",
     "BIRD Developer",
@@ -14,24 +40,11 @@ datasets = [
     "SPIDER Test",
 ]
 
-MODEL_TO_SYSTEM_ID = {
-    "DeepSeek Chat": "deepseek-chat",
-    "Qwen2.5 Coder 32B": "qwen2.5-coder_32b",
-    "Qwen3 Coder 30B": "qwen3-coder_30b",
-    "Cogito 70b": "cogito_70b",
-}
+MODEL_TO_SYSTEM_ID = {readable_model_label(system_id): system_id for system_id in _SYSTEM_MODELS}
 SYSTEM_ID_TO_MODEL = {v: k for k, v in MODEL_TO_SYSTEM_ID.items()}
 
-PAIRWISE_METRICS = [
-    "schema_precision",
-    "schema_recall",
-    "cell_value_accuracy",
-    "row_set_jaccard",
-    "execution_accuracy",
-    "f1_score",
-]
+PAIRWISE_METRICS = list(CANONICAL_METRICS)
 
-SELECTOR_SOURCE_LABEL = "DeepSeek Chat selector"
 EMBEDDING_SELECTOR_SOURCE_LABEL = "Embedding selector"
 FAKE_DATA_DIR = 'fake_data'
 CACHE_DIR = 'cache_results'
@@ -46,10 +59,12 @@ DATASET_FLAGS = {
 }
 
 SELECTOR_MODEL_OPTIONS = [
-    {"key": "deepseek-chat", "name": "DeepSeek Chat", "tooltip": "Use DeepSeek Chat as single-selector model."},
-    {"key": "qwen2.5-coder_32b", "name": "Qwen2.5 Coder 32B", "tooltip": "Use Qwen2.5 Coder 32B as single-selector model."},
-    {"key": "qwen3-coder_30b", "name": "Qwen3 Coder 30B", "tooltip": "Use Qwen3 Coder 30B as single-selector model."},
-    {"key": "cogito_70b", "name": "Cogito 70b", "tooltip": "Use Cogito 70b as single-selector model."},
+    {
+        "key": system_id,
+        "name": readable_model_label(system_id),
+        "tooltip": f"Use {readable_model_label(system_id)} as pairwise-selector judge model.",
+    }
+    for system_id in _SYSTEM_MODELS
 ]
 
 
@@ -389,53 +404,105 @@ databases = {
 
 # Load model results
 @st.cache_data
+def load_bird_metrics_lookup():
+    """Load BIRD Developer true metrics indexed by (db_id, question_id, model_system_id)."""
+    lookup = {}
+    metrics_dir = 'metrics_results'
+    if not os.path.exists(metrics_dir):
+        return lookup
+
+    for filename in os.listdir(metrics_dir):
+        if not filename.startswith('evaluation_sql_metrics_') or not filename.endswith('_vs_ground_truth.json'):
+            continue
+
+        system_model = filename[len('evaluation_sql_metrics_'):-len('_vs_ground_truth.json')]
+        path = os.path.join(metrics_dir, filename)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+        except Exception:
+            continue
+
+        if not isinstance(payload, list):
+            continue
+
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+            db_id = row.get('db_id')
+            question_id = row.get('question_id')
+            if db_id is None or question_id is None:
+                continue
+
+            key = (str(db_id), int(question_id), system_model)
+            metric_block = {}
+            for metric_key in PAIRWISE_METRICS:
+                value = row.get(metric_key)
+                pct = metric_to_percentage(value)
+                if pct is not None:
+                    metric_block[metric_key] = pct
+            if metric_block:
+                lookup[key] = metric_block
+
+    return lookup
+
+
+@st.cache_data
+def load_precomputed_embedding_assets():
+    """Load precomputed similarity index and embeddings vector table."""
+    index_path = os.path.join('precomputed', 'similarity', 'bird_dev_similarity_index.json')
+    emb_path = os.path.join('precomputed', 'embeddings', 'sql_embeddings.npz')
+
+    if not os.path.exists(index_path) or not os.path.exists(emb_path):
+        return {}, None
+
+    try:
+        index_payload = load_json_artifact(index_path)
+        emb_payload = load_embeddings_artifact(emb_path)
+        return index_payload, emb_payload.get('vectors')
+    except Exception:
+        return {}, None
+
+
+def _pick_selected_model_from_leaderboard(row, selector_model, dataset_name):
+    leaderboard = row.get('leaderboard') or []
+    if isinstance(leaderboard, list) and leaderboard:
+        top_score = max(x.get('wins', 0) for x in leaderboard if isinstance(x, dict))
+        top_models = [x.get('model') for x in leaderboard if isinstance(x, dict) and x.get('wins', 0) == top_score and x.get('model')]
+        if top_models:
+            seed = f"{selector_model}|{dataset_name}|{row.get('db_id')}|{row.get('question_id')}"
+            return random.Random(seed).choice(sorted(top_models))
+    return row.get('selected_candidate_model')
+
+
+@st.cache_data
 def load_model_results():
-    """Load true pairwise metrics and fill missing datasets with fake execution metrics."""
+    """Load canonical metrics for candidate models (real BIRD + fake non-BIRD)."""
     all_rows = []
     seen = set()
-    
+
     try:
-        if os.path.exists('all_pairwise_comparisons.json'):
-            with open('all_pairwise_comparisons.json', 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
+        # Real BIRD developer metrics from metrics_results/evaluation_sql_metrics_* files.
+        metrics_lookup = load_bird_metrics_lookup()
+        for (database, query_id, system_model), metric_block in metrics_lookup.items():
+            model_name = SYSTEM_ID_TO_MODEL.get(system_model, readable_model_label(system_model))
+            for metric_key in PAIRWISE_METRICS:
+                metric_value = metric_block.get(metric_key)
+                if not isinstance(metric_value, (int, float)):
+                    continue
+                dedup_key = ('BIRD Developer', query_id, database, model_name, metric_key)
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
 
-            for query_data in json_data.values():
-                query_id = query_data.get('question_id')
-                database = query_data.get('db_id')
-
-                for comparison in query_data.get('comparisons', {}).values():
-                    system1 = comparison.get('system1')
-                    system2 = comparison.get('system2')
-
-                    if system1 == 'ground_truth' and system2 in SYSTEM_ID_TO_MODEL:
-                        model_name = SYSTEM_ID_TO_MODEL[system2]
-                    elif system2 == 'ground_truth' and system1 in SYSTEM_ID_TO_MODEL:
-                        model_name = SYSTEM_ID_TO_MODEL[system1]
-                    else:
-                        continue
-
-                    for metric_key in PAIRWISE_METRICS:
-                        metric_value = comparison.get(metric_key)
-                        if not isinstance(metric_value, (int, float)):
-                            continue
-
-                        # Pairwise metrics are in [0,1], normalize to percentage scale for chart consistency.
-                        if metric_value <= 1.0:
-                            metric_value *= 100.0
-
-                        dedup_key = ('BIRD Developer', query_id, database, model_name, metric_key)
-                        if dedup_key in seen:
-                            continue
-                        seen.add(dedup_key)
-
-                        all_rows.append({
-                            'dataset': 'BIRD Developer',
-                            'database': database,
-                            'id': query_id,
-                            'model': model_name,
-                            'metric': metric_key,
-                            'value': metric_value,
-                        })
+                all_rows.append({
+                    'dataset': 'BIRD Developer',
+                    'database': database,
+                    'id': query_id,
+                    'model': model_name,
+                    'metric': metric_key,
+                    'value': metric_value,
+                })
 
         fake_execution_path = os.path.join(FAKE_DATA_DIR, 'fake_execution_metrics.json')
         if os.path.exists(fake_execution_path):
@@ -453,17 +520,14 @@ def load_model_results():
                     system_model = row.get('model')
                     metrics = row.get('metrics') or {}
 
-                    model_name = SYSTEM_ID_TO_MODEL.get(system_model)
-                    if not model_name:
-                        continue
+                    model_name = SYSTEM_ID_TO_MODEL.get(system_model, readable_model_label(system_model))
 
                     for metric_key in PAIRWISE_METRICS:
                         metric_value = metrics.get(metric_key)
-                        if not isinstance(metric_value, (int, float)):
-                            continue
 
-                        if metric_value <= 1.0:
-                            metric_value *= 100.0
+                        metric_pct = metric_to_percentage(metric_value)
+                        if metric_pct is None:
+                            continue
 
                         dedup_key = (dataset_name, query_id, database, model_name, metric_key)
                         if dedup_key in seen:
@@ -476,7 +540,7 @@ def load_model_results():
                             'id': query_id,
                             'model': model_name,
                             'metric': metric_key,
-                            'value': metric_value,
+                            'value': metric_pct,
                         })
         
         # Create DataFrame from all rows
@@ -492,63 +556,101 @@ def load_model_results():
 
 @st.cache_data
 def load_selector_ground_truth_results():
-    """Load true selector metrics plus fake fallback for all selector models."""
-    file_path = 'selectors/deepseek-chat_selector_performance_vs_ground_truth.json'
-
+    """Load selector-derived metrics from pairwise outcomes plus fake fallback."""
     rows = []
     seen = set()
+    bird_lookup = load_bird_metrics_lookup()
 
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            payload = json.load(f)
+    pairwise_dir = 'pairwise_results'
+    if os.path.exists(pairwise_dir):
+        for filename in os.listdir(pairwise_dir):
+            if not filename.endswith('_pairwise_selector_results.json'):
+                continue
+            path = os.path.join(pairwise_dir, filename)
+            with open(path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
 
-        for row in payload.get('per_query', []):
-            query_id = row.get('question_id')
-            database = row.get('db_id')
             selector_model = payload.get('selector_model', 'deepseek-chat')
             source_label = selector_source_label(selector_model)
-            for metric_key in PAIRWISE_METRICS:
-                metric_value = row.get(metric_key)
-                if not isinstance(metric_value, (int, float)):
+
+            for row in payload.get('results', []):
+                if not isinstance(row, dict):
                     continue
-                if metric_value <= 1.0:
-                    metric_value *= 100.0
-
-                dedup_key = ('BIRD Developer', query_id, database, source_label, metric_key)
-                if dedup_key in seen:
+                query_id = row.get('question_id')
+                database = row.get('db_id')
+                selected_model = _pick_selected_model_from_leaderboard(row, selector_model, 'BIRD Developer')
+                if not selected_model:
                     continue
-                seen.add(dedup_key)
 
-                rows.append({
-                    'dataset': 'BIRD Developer',
-                    'database': database,
-                    'id': query_id,
-                    'model': source_label,
-                    'metric': metric_key,
-                    'value': metric_value,
-                })
+                metric_block = bird_lookup.get((str(database), int(query_id), selected_model), {})
+                for metric_key in PAIRWISE_METRICS:
+                    metric_value = metric_block.get(metric_key)
+                    if not isinstance(metric_value, (int, float)):
+                        continue
+                    dedup_key = ('BIRD Developer', query_id, database, source_label, metric_key)
+                    if dedup_key in seen:
+                        continue
+                    seen.add(dedup_key)
 
-    fake_selector_path = os.path.join(FAKE_DATA_DIR, 'fake_selector_performance.json')
-    if os.path.exists(fake_selector_path):
-        with open(fake_selector_path, 'r', encoding='utf-8') as f:
-            fake_payload = json.load(f)
+                    rows.append({
+                        'dataset': 'BIRD Developer',
+                        'database': database,
+                        'id': query_id,
+                        'model': source_label,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    })
 
-        if isinstance(fake_payload, list):
-            for row in fake_payload:
+    fake_pairwise_selector_path = os.path.join(FAKE_DATA_DIR, 'fake_selector_pairwise_results.json')
+    if os.path.exists(fake_pairwise_selector_path):
+        with open(fake_pairwise_selector_path, 'r', encoding='utf-8') as f:
+            fake_pairwise_payload = json.load(f)
+
+        if isinstance(fake_pairwise_payload, list):
+            for row in fake_pairwise_payload:
                 if not isinstance(row, dict):
                     continue
 
                 dataset_name = row.get('dataset')
                 query_id = row.get('question_id')
                 database = row.get('db_id')
-                source_label = selector_source_label(row.get('selector_model', 'deepseek-chat'))
+                selector_model = row.get('judge_model', 'deepseek-chat')
+                source_label = selector_source_label(selector_model)
+                candidate_models = row.get('candidate_models') or []
+                judgments = row.get('pairwise_judgments') or []
+                if not candidate_models or not judgments:
+                    continue
+
+                wins = {m: 0 for m in candidate_models}
+                for judgment in judgments:
+                    winner = judgment.get('winner')
+                    if winner in wins:
+                        wins[winner] += 1
+
+                top_score = max(wins.values()) if wins else 0
+                top_models = [m for m, v in wins.items() if v == top_score]
+                if not top_models:
+                    continue
+
+                seed = f"{selector_model}|{dataset_name}|{database}|{query_id}"
+                selected_model = random.Random(seed).choice(sorted(top_models))
+
+                selected_metrics = None
+                for judgment in judgments:
+                    if judgment.get('model_a') == selected_model:
+                        selected_metrics = judgment.get('metrics_a') or {}
+                        break
+                    if judgment.get('model_b') == selected_model:
+                        selected_metrics = judgment.get('metrics_b') or {}
+                        break
+
+                if not isinstance(selected_metrics, dict):
+                    continue
 
                 for metric_key in PAIRWISE_METRICS:
-                    metric_value = row.get(metric_key)
-                    if not isinstance(metric_value, (int, float)):
+                    metric_pct = metric_to_percentage(selected_metrics.get(metric_key))
+                    if metric_pct is None:
                         continue
-                    if metric_value <= 1.0:
-                        metric_value *= 100.0
 
                     dedup_key = (dataset_name, query_id, database, source_label, metric_key)
                     if dedup_key in seen:
@@ -561,7 +663,7 @@ def load_selector_ground_truth_results():
                         'id': query_id,
                         'model': source_label,
                         'metric': metric_key,
-                        'value': metric_value,
+                        'value': metric_pct,
                     })
 
     return pd.DataFrame(rows)
@@ -569,7 +671,7 @@ def load_selector_ground_truth_results():
 
 @st.cache_data
 def load_embedding_selector_results():
-    """Load true embedding selector metrics plus fake fallback for missing datasets."""
+    """Load persisted embedding selector metrics (fallback path)."""
     file_path = 'embedding_pipeline_selection_results.json'
 
     rows = []
@@ -590,11 +692,9 @@ def load_embedding_selector_results():
 
                 for metric_key in PAIRWISE_METRICS:
                     metric_value = metrics.get(metric_key)
-                    if not isinstance(metric_value, (int, float)):
+                    metric_pct = metric_to_percentage(metric_value)
+                    if metric_pct is None:
                         continue
-
-                    if metric_value <= 1.0:
-                        metric_value *= 100.0
 
                     dedup_key = ('BIRD Developer', query_id, database, metric_key)
                     if dedup_key in seen:
@@ -607,7 +707,7 @@ def load_embedding_selector_results():
                         'id': query_id,
                         'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
                         'metric': metric_key,
-                        'value': metric_value,
+                        'value': metric_pct,
                     })
 
     fake_embedding_path = os.path.join(FAKE_DATA_DIR, 'fake_embedding_selection.json')
@@ -627,11 +727,9 @@ def load_embedding_selector_results():
 
                 for metric_key in PAIRWISE_METRICS:
                     metric_value = metrics.get(metric_key)
-                    if not isinstance(metric_value, (int, float)):
+                    metric_pct = metric_to_percentage(metric_value)
+                    if metric_pct is None:
                         continue
-
-                    if metric_value <= 1.0:
-                        metric_value *= 100.0
 
                     dedup_key = (dataset_name, query_id, database, metric_key)
                     if dedup_key in seen:
@@ -644,7 +742,7 @@ def load_embedding_selector_results():
                         'id': query_id,
                         'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
                         'metric': metric_key,
-                        'value': metric_value,
+                        'value': metric_pct,
                     })
 
     return pd.DataFrame(rows)
@@ -686,6 +784,89 @@ if not all_embedding_selector_results.empty:
         all_embedding_selector_results['database'].astype(str) + '|' +
         all_embedding_selector_results['id'].astype(str)
     ).apply(string_to_deterministic_int)
+
+
+def compute_realtime_embedding_selector_rows(active_queries, selected_models, selected_metric_keys):
+    """Compute embedding selector rows in real time from precomputed similarity matrices."""
+    if active_queries.empty:
+        return []
+
+    precomputed_index, embeddings_vectors = load_precomputed_embedding_assets()
+    if not precomputed_index or embeddings_vectors is None:
+        return []
+
+    queries_index = precomputed_index.get('queries', {}) if isinstance(precomputed_index, dict) else {}
+    bird_lookup = load_bird_metrics_lookup()
+    selected_systems = {MODEL_TO_SYSTEM_ID.get(name) for name in selected_models if MODEL_TO_SYSTEM_ID.get(name)}
+
+    rows = []
+    for _, qrow in active_queries.iterrows():
+        dataset_name = qrow.get('dataset')
+        if dataset_name != 'BIRD Developer':
+            continue
+
+        db_id = str(qrow.get('database', ''))
+        question_id = int(qrow.get('id'))
+        query_key = f"{db_id}|{question_id}"
+        entry = queries_index.get(query_key)
+        if not isinstance(entry, dict):
+            continue
+
+        models_for_query = entry.get('models', [])
+        sql_ids_for_query = entry.get('sql_ids', [])
+        matrix_file = entry.get('matrix_file')
+        if not isinstance(models_for_query, list) or not isinstance(sql_ids_for_query, list) or not matrix_file:
+            continue
+
+        selected_positions = [
+            idx for idx, system_model in enumerate(models_for_query)
+            if system_model in selected_systems
+        ]
+        if len(selected_positions) < 2:
+            continue
+
+        matrix_path = os.path.join('.', matrix_file)
+        if not os.path.exists(matrix_path):
+            continue
+
+        try:
+            full_matrix = load_similarity_matrix_artifact(matrix_path)
+        except Exception:
+            continue
+
+        sub_matrix = full_matrix[np.ix_(selected_positions, selected_positions)]
+        sub_sql_ids = [int(sql_ids_for_query[i]) for i in selected_positions]
+        sub_vectors = [embeddings_vectors[sql_id] for sql_id in sub_sql_ids]
+
+        if len(sub_vectors) < 2:
+            continue
+
+        threshold = float(sub_matrix[np.triu_indices_from(sub_matrix, k=1)].mean()) if sub_matrix.shape[0] > 1 else 1.0
+        groups = compute_similarity_groups_pairwise(sub_vectors, sub_matrix, verbose=0, threshold=threshold)
+        biggest_group = max(groups, key=len)
+        selected_local_idx = get_vector_closest_to_centroid(biggest_group)
+        if selected_local_idx is None:
+            continue
+
+        selected_system = models_for_query[selected_positions[selected_local_idx]]
+        metric_block = bird_lookup.get((db_id, question_id, selected_system), {})
+
+        for metric_key in selected_metric_keys:
+            metric_value = metric_block.get(metric_key)
+            if not isinstance(metric_value, (int, float)):
+                continue
+            rows.append(
+                {
+                    'dataset': dataset_name,
+                    'database': db_id,
+                    'id': question_id,
+                    'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
+                    'metric': metric_key,
+                    'value': metric_value,
+                }
+            )
+
+    return rows
 
 def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None, selected_selector_models=None):
     """
@@ -738,13 +919,17 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
         if not selector_df.empty:
             selector_rows = selector_df.to_dict(orient='records')
 
-    if embedding_selector_enabled and selected_metric_keys and not all_embedding_selector_results.empty:
-        embedding_selector_df = all_embedding_selector_results[
-            all_embedding_selector_results['g_id'].isin(active_g_ids) &
-            all_embedding_selector_results['metric'].isin(selected_metric_keys)
-        ].copy()
-        if not embedding_selector_df.empty:
-            selector_rows.extend(embedding_selector_df.to_dict(orient='records'))
+    if embedding_selector_enabled and selected_metric_keys:
+        realtime_rows = compute_realtime_embedding_selector_rows(active_queries, selected_models, selected_metric_keys)
+        if realtime_rows:
+            selector_rows.extend(realtime_rows)
+        elif not all_embedding_selector_results.empty:
+            embedding_selector_df = all_embedding_selector_results[
+                all_embedding_selector_results['g_id'].isin(active_g_ids) &
+                all_embedding_selector_results['metric'].isin(selected_metric_keys)
+            ].copy()
+            if not embedding_selector_df.empty:
+                selector_rows.extend(embedding_selector_df.to_dict(orient='records'))
 
     if selector_rows:
         selector_df = pd.DataFrame(selector_rows)
@@ -757,16 +942,15 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
 
 
 metrics = [
-    {"name": "Schema Precision", "key": "schema_precision", "default": True, "tooltip": "Precision on schema elements used by predicted SQL vs ground truth."},
-    {"name": "Schema Recall", "key": "schema_recall", "default": True, "tooltip": "Recall on schema elements used by predicted SQL vs ground truth."},
-    {"name": "Cell Value Accuracy", "key": "cell_value_accuracy", "default": True, "tooltip": "Correctness of result cell values against ground truth output."},
-    {"name": "Row Set Jaccard", "key": "row_set_jaccard", "default": True, "tooltip": "Overlap between predicted and ground-truth result rows."},
     {"name": "Execution Accuracy", "key": "execution_accuracy", "default": True, "tooltip": "Execution-level correctness compared with ground truth."},
-    {"name": "F1 Score", "key": "f1_score", "default": True, "tooltip": "Harmonic mean balancing precision and recall for result correctness."},
+    {"name": "Exact Match", "key": "exact_match", "default": True, "tooltip": "Exact SQL string/structure match against ground truth."},
+    {"name": "SQL F1", "key": "sql_f1_score", "default": True, "tooltip": "SQL-level F1 score from precision/recall matching."},
+    {"name": "Response F1", "key": "response_schema_f1_score", "default": True, "tooltip": "F1 score on response schema alignment."},
+    {"name": "Cell F1", "key": "cell_f1_score", "default": True, "tooltip": "F1 score over cell-level result values."},
 ]
 
 selectors = [
-    {"name": "Single LLM Selector", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Plots single-selector metrics for the selected selector models."},
+    {"name": "Pairwise LLM Selector", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Plots pairwise-selector metrics for the selected judge models."},
     {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."}
 ]
 
@@ -775,7 +959,10 @@ model_colors = {
     "DeepSeek Chat": "#246BCE",
     "Qwen2.5 Coder 32B": "#1C9A79",
     "Qwen3 Coder 30B": "#F39C12",
-    "Cogito 70b": "#C0392B"
+    "Cogito 70B": "#C0392B",
+    "CodeLlama 70B": "#8D6E63",
+    "Codestral 22B": "#5D6D7E",
+    "SQLCoder 15B": "#16A085",
 }
 
 dataset_colors = {
@@ -787,12 +974,11 @@ dataset_colors = {
 }
 
 metric_colors = {
-    "schema_precision": "#0F4C81",
-    "schema_recall": "#2E86AB",
-    "cell_value_accuracy": "#00A878",
-    "row_set_jaccard": "#F18F01",
     "execution_accuracy": "#D1495B",
-    "f1_score": "#6C5CE7",
+    "exact_match": "#0F4C81",
+    "sql_f1_score": "#6C5CE7",
+    "response_schema_f1_score": "#2E86AB",
+    "cell_f1_score": "#00A878",
 }
 
 selectors_colors = {
@@ -820,12 +1006,11 @@ st.markdown("""
 .color-spider-test { color: #FFD9AD !important; }
 
 /* Metric colors - Green family */
-.color-schema-precision { color: #0F4C81 !important; }
-.color-schema-recall { color: #2E86AB !important; }
-.color-cell-value-accuracy { color: #00A878 !important; }
-.color-row-set-jaccard { color: #F18F01 !important; }
+.color-exact-match { color: #0F4C81 !important; }
+.color-response-f1 { color: #2E86AB !important; }
+.color-cell-f1 { color: #00A878 !important; }
+.color-sql-f1 { color: #6C5CE7 !important; }
 .color-execution-accuracy { color: #D1495B !important; }
-.color-f1-score { color: #6C5CE7 !important; }
             
 /* Selector colors Grey/Purple family */
 .color-single-selector { color: #6A1B9A !important; }
@@ -896,7 +1081,7 @@ def get_model_class(model_name):
         "DeepSeek Chat": "color-deepseek",
         "Qwen2.5 Coder 32B": "color-qwen25",
         "Qwen3 Coder 30B": "color-qwen3",
-        "Cogito 70b": "color-cogito",
+        "Cogito 70B": "color-cogito",
     }
     return class_map.get(model_name, "")
 
@@ -922,12 +1107,11 @@ def get_dataset_bg_class(dataset_name):
 
 def get_metric_class(metric_key):
     class_map = {
-        "schema_precision": "color-schema-precision",
-        "schema_recall": "color-schema-recall",
-        "cell_value_accuracy": "color-cell-value-accuracy",
-        "row_set_jaccard": "color-row-set-jaccard",
         "execution_accuracy": "color-execution-accuracy",
-        "f1_score": "color-f1-score",
+        "exact_match": "color-exact-match",
+        "sql_f1_score": "color-sql-f1",
+        "response_schema_f1_score": "color-response-f1",
+        "cell_f1_score": "color-cell-f1",
     }
     return class_map.get(metric_key, "")
 
@@ -1354,12 +1538,11 @@ with columns[1]:
         def create_metric_label(row):
             """Create a display label for the metric, including agent info if present"""
             metric_names = {
-                "schema_precision": "Schema Precision",
-                "schema_recall": "Schema Recall",
-                "cell_value_accuracy": "Cell Value Accuracy",
-                "row_set_jaccard": "Row Set Jaccard",
                 "execution_accuracy": "Execution Accuracy",
-                "f1_score": "F1 Score",
+                "exact_match": "Exact Match",
+                "sql_f1_score": "SQL F1",
+                "response_schema_f1_score": "Response F1",
+                "cell_f1_score": "Cell F1",
             }
             metric_display = metric_names.get(row['metric'], row['metric'])
             return metric_display

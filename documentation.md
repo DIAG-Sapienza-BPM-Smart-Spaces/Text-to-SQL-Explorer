@@ -1,14 +1,17 @@
 # Demo Paper - Code Documentation
 
 ## Overview
+
 This repository evaluates and compares multiple text-to-SQL candidate systems, then analyzes selection strategies for choosing among candidate SQL outputs.
 
 Primary execution paths:
+
 - Binary LLM judging pipeline.
-- Single-selector LLM pipeline.
+- Pairwise-selector LLM pipeline.
 - Embedding-based selector pipeline.
 
 Supporting assets:
+
 - Streamlit visualizations for performance exploration.
 - Unified fake-data generation for missing visualization scenarios.
 - SQL normalization and schema retrieval utilities.
@@ -16,21 +19,27 @@ Supporting assets:
 ## Repository Structure
 
 ### Core Pipelines
+
 - `llm_as_judge.py`: Binary ACCEPT/REJECT judging against candidate SQLs.
-- `selector.py`: Single-selector candidate choice pipeline (CANDIDATE 1..4).
-- `selector_pre_calculation.py`: Aggregates selector outputs versus ground truth metrics.
+- `selector.py`: Pairwise selector pipeline with persisted raw model-vs-model judgments.
+- `selector_realtime_ranking.py`: Derives runtime selector metrics from persisted pairwise judgments.
 - `embedding.py`: SQL embedding and clustering utilities.
 - `embedding_pipeline_selection.py`: End-to-end embedding selector evaluation.
+- `precompute_embeddings.py`: Offline embedding precomputation.
+- `precompute_similarity_matrices.py`: Offline similarity matrix precomputation.
 
 ### Data Utilities
+
 - `retrieve_database_info.py`: Dataset/table JSON loading and schema formatting.
-- `sql_cleaner.py`: Cleans model SQL outputs and normalizes text artifacts.
+- `sql_cleaner.py`: Cleans model SQL outputs in `candidates/` and normalizes text artifacts.
 
 ### Visualization
+
 - `first_visualization.py`: Main performance dashboard with query filtering, model metrics, and selector overlays.
 - `binary_visualization.py`: Detailed binary-judge exploration view.
 
 ### Generated Data Artifacts
+
 - `all_pairwise_comparisons.json`: Ground-truth pairwise metrics source.
 - `binary_choices/`: True binary judge outputs.
 - `selectors/`: True selector outputs and selector-vs-ground-truth metrics.
@@ -41,32 +50,37 @@ Supporting assets:
 ## Fake Data System
 
 ### Unified Generator
+
 - `generate_fake_visualization_data.py`
 
 Responsibilities:
+
 - Generate deterministic fake execution metrics for missing model/dataset combinations.
-- Generate deterministic fake single-selector outputs for all selector models.
+- Generate deterministic fake pairwise-selector judgments for all selector models.
 - Generate deterministic fake embedding selector outputs.
 - Generate deterministic fake binary judge outputs.
 
 Main outputs:
+
 - `fake_data/fake_generation_bundle.json`
 - `fake_data/fake_execution_metrics.json`
-- `fake_data/fake_selector_performance.json`
+- `fake_data/fake_selector_pairwise_results.json`
 - `fake_data/fake_embedding_selection.json`
 - `fake_data/fake_binary_choices.json`
 
 ## Visualization Data Flow
 
 ### Main Dashboard (`first_visualization.py`)
+
 - Loads and normalizes query datasets from `datasets_files/`.
 - Computes query-level table/attribute/length features from SQL and schema.
 - Uses true metrics when available and merges fake fallback data when true data is absent.
 - Supports selector overlays for:
-  - Single-selector models (DeepSeek, Qwen2.5, Qwen3, Cogito).
+  - Pairwise-selector judge models (winner derived from persisted pairwise outcomes).
   - Embedding selector.
 
 ### Binary Dashboard (`binary_visualization.py`)
+
 - Reads true binary outputs from `binary_choices/`.
 - Uses `fake_data/fake_binary_choices.json` as fallback coverage.
 - Enriches rows with query metadata when available.
@@ -74,9 +88,11 @@ Main outputs:
 ## Caching Strategy
 
 ### Streamlit Cache
+
 - `@st.cache_data` is used for expensive load/transform stages.
 
 ### Disk Cache (`cache_results/`)
+
 - `first_visualization.py` writes and reads preprocessing cache files.
 - Cache invalidation uses file signatures based on path, size, and mtime.
 - Cached artifacts currently include:

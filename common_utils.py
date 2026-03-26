@@ -1,9 +1,33 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from threading import Lock
 from typing import Any, Optional
+
+
+CANONICAL_METRICS = [
+    "execution_accuracy",
+    "exact_match",
+    "sql_f1_score",
+    "response_schema_f1_score",
+    "cell_f1_score",
+]
+
+# Legacy names are still accepted so old artifacts remain readable.
+LEGACY_TO_CANONICAL_METRIC = {
+    "schema_precision": "response_schema_f1_score",
+    "schema_recall": "response_schema_f1_score",
+    "cell_value_accuracy": "cell_f1_score",
+    "row_set_jaccard": "sql_f1_score",
+    "f1_score": "sql_f1_score",
+    "execution_accuracy": "execution_accuracy",
+    "exact_match": "exact_match",
+    "sql_f1_score": "sql_f1_score",
+    "response_schema_f1_score": "response_schema_f1_score",
+    "cell_f1_score": "cell_f1_score",
+}
 
 
 def resolve_path(path: str | Path, base_dir: Optional[Path] = None) -> Path:
@@ -47,6 +71,63 @@ def atomic_dump_json(
         _write()
 
 
+def canonical_metric_name(metric_name: str) -> Optional[str]:
+    """Map any known metric key to the canonical metric contract."""
+    if metric_name is None:
+        return None
+    return LEGACY_TO_CANONICAL_METRIC.get(str(metric_name).strip())
+
+
+def metric_to_percentage(value: Any) -> Optional[float]:
+    """Convert a scalar metric from [0,1] to [0,100] when needed."""
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return num * 100.0 if num <= 1.0 else num
+
+
+def readable_model_label(system_id: str) -> str:
+    """Convert a system id into a display label used by visualizations."""
+    if not isinstance(system_id, str):
+        return "Unknown"
+    token = system_id.strip()
+    explicit = {
+        "deepseek-chat": "DeepSeek Chat",
+        "qwen2.5-coder_32b": "Qwen2.5 Coder 32B",
+        "qwen3-coder_30b": "Qwen3 Coder 30B",
+        "cogito_70b": "Cogito 70B",
+        "codellama_70b": "CodeLlama 70B",
+        "codestral_22b": "Codestral 22B",
+        "sqlcoder_15b": "SQLCoder 15B",
+        "ground_truth": "Ground Truth",
+    }
+    if token in explicit:
+        return explicit[token]
+    words = re.split(r"[_\-]+", token)
+    return " ".join(w.capitalize() for w in words if w)
+
+
+def collect_models_from_metric_files(metrics_dir: str | Path) -> list[str]:
+    """Collect system model ids from metrics_results file names."""
+    root = resolve_path(metrics_dir)
+    if not root.exists():
+        return []
+
+    models = set()
+    for path in root.glob("evaluation_sql_metrics_*_vs_ground_truth.json"):
+        stem = path.stem
+        marker = "evaluation_sql_metrics_"
+        suffix = "_vs_ground_truth"
+        if not stem.startswith(marker) or not stem.endswith(suffix):
+            continue
+        model_id = stem[len(marker): -len(suffix)]
+        if model_id:
+            models.add(model_id)
+
+    return sorted(models)
+
+
 def build_pairwise_index(pairwise_payload: dict[str, Any]) -> dict[tuple[str, int], dict[str, Any]]:
     """Index pairwise payload rows by (db_id, question_id)."""
     index: dict[tuple[str, int], dict[str, Any]] = {}
@@ -61,6 +142,38 @@ def build_pairwise_index(pairwise_payload: dict[str, Any]) -> dict[tuple[str, in
         index[(str(db_id), int(question_id))] = row
 
     return index
+
+
+def _pair_key(model_a: str, model_b: str) -> tuple[str, str]:
+    a = str(model_a)
+    b = str(model_b)
+    return (a, b) if a <= b else (b, a)
+
+
+def extract_pairwise_comparison(
+    pairwise_entry: Optional[dict[str, Any]],
+    model_a: str,
+    model_b: str,
+) -> Optional[dict[str, Any]]:
+    """Extract comparison block for any model pair, regardless of ordering."""
+    if not pairwise_entry:
+        return None
+    comparisons = pairwise_entry.get("comparisons", {})
+    if not isinstance(comparisons, dict):
+        return None
+
+    expected = _pair_key(model_a, model_b)
+    for comp in comparisons.values():
+        if not isinstance(comp, dict):
+            continue
+        s1 = comp.get("system1")
+        s2 = comp.get("system2")
+        if s1 is None or s2 is None:
+            continue
+        if _pair_key(str(s1), str(s2)) == expected:
+            return comp
+
+    return None
 
 
 def extract_ground_truth_comparison(

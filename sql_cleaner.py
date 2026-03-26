@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_SQL_FOLDER = Path(__file__).resolve().parent / "sqls"
+DEFAULT_SQL_FOLDER = Path(__file__).resolve().parent / "candidates"
 
 
 def strip_markdown_code_fences(text: str) -> str:
@@ -112,7 +112,7 @@ def clean_sql_file(file_path: Path) -> int:
 
 
 def clean_all_sql_files(sql_folder: Path = DEFAULT_SQL_FOLDER) -> None:
-	"""Clean all JSON result files in sqls/ and append clean_sql per record."""
+	"""Clean all JSON result files in candidates/ and append clean_sql per record."""
 	if not sql_folder.exists() or not sql_folder.is_dir():
 		raise FileNotFoundError(f"SQL folder not found: {sql_folder}")
 
