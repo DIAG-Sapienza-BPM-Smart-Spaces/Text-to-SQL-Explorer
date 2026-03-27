@@ -98,28 +98,47 @@ def run_precompute(
     """Build per-query similarity matrices from precomputed embeddings + lookup."""
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if verbose >= 1:
+        print(
+            "[similarity] Starting precompute "
+            f"(dataset={dataset_filter}, embedding_dir={embedding_dir}, out_dir={out_dir}, workers={max_workers})"
+        )
+
     # Intermediate input 1: full embeddings matrix produced by precompute_embeddings.py
     embeddings = load_embeddings_artifact(embedding_dir / "sql_embeddings.npz")
     vectors = embeddings["vectors"]
+    if verbose >= 2:
+        print(f"[similarity] Loaded embeddings matrix with shape={tuple(vectors.shape)}")
 
     # Intermediate input 2: key->embedding-index mapping
     lookup = load_json_artifact(embedding_dir / "sql_embeddings_lookup.json")
+    if verbose >= 2:
+        print(f"[similarity] Loaded lookup entries={len(lookup)}")
 
     # Group rows by query identity (dataset, db_id, question_id).
     grouped: dict[str, dict[str, Any]] = {}
+    # Track skipped rows to make input quality issues visible.
+    skipped_parse = 0
+    skipped_dataset = 0
+    skipped_bounds = 0
+
     for composite_key, idx_raw in lookup.items():
         if not isinstance(composite_key, str):
+            skipped_parse += 1
             continue
         try:
             model, dataset, db_id, qid_raw = composite_key.split("|", 3)
             qid = int(qid_raw)
             sql_idx = int(idx_raw)
         except (ValueError, TypeError):
+            skipped_parse += 1
             continue
 
         if not _dataset_matches(dataset, dataset_filter):
+            skipped_dataset += 1
             continue
         if sql_idx < 0 or sql_idx >= len(vectors):
+            skipped_bounds += 1
             continue
 
         grouped_key = f"{dataset}|{db_id}|{qid}"
@@ -131,6 +150,12 @@ def run_precompute(
                 "model_to_sql_id": {},
             }
         grouped[grouped_key]["model_to_sql_id"][model] = sql_idx
+
+    if verbose >= 1:
+        print(
+            "[similarity] Grouped queries="
+            f"{len(grouped)} (skipped_parse={skipped_parse}, skipped_dataset={skipped_dataset}, skipped_bounds={skipped_bounds})"
+        )
 
     matrix_meta = {
         "dataset": dataset_filter,
@@ -152,14 +177,24 @@ def run_precompute(
                 for key, row in grouped.items()
             ]
 
+            completed = 0
+            total = len(futures)
             for future in concurrent.futures.as_completed(futures):
                 key, entry = future.result()
                 matrix_meta["queries"][key] = entry
+                completed += 1
+                if verbose >= 2 and (completed % 50 == 0 or completed == total):
+                    print(f"[similarity] Completed {completed}/{total} query matrices")
+
+    elif verbose >= 1:
+        print("[similarity] No grouped queries matched the requested dataset filter")
 
     # Final output index that points to all generated matrix files.
     dataset_token = _safe_filename_token(_normalized_dataset_token(dataset_filter))
     index_name = "similarity_index.json" if dataset_token in ("", "all") else f"{dataset_token}_similarity_index.json"
     save_json_artifact(out_dir / index_name, matrix_meta)
+    if verbose >= 1:
+        print(f"[similarity] Saved similarity index: {out_dir / index_name}")
 
     if verbose >= 1:
         print(f"[similarity] Saved {len(matrix_meta['queries'])} similarity matrices to {out_dir}")

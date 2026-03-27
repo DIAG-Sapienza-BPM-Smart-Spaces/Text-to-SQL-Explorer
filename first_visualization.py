@@ -8,7 +8,6 @@ import numpy as np
 
 from common_utils import (
     CANONICAL_METRICS,
-    collect_models_from_metric_files,
     fast_hash_hex,
     fast_hash_int,
     metric_to_percentage,
@@ -22,14 +21,30 @@ from embedding import (
     load_similarity_matrix_artifact,
 )
 
-_SYSTEM_MODELS = collect_models_from_metric_files('metrics_results') or [
+# Development toggle: when True, all fake-data sources are ignored.
+DEVELOPMENT_MODE = True
+
+def _collect_models_from_candidates(candidates_dir='candidates'):
+    """Collect candidate model ids from candidates folder file names."""
+    if not os.path.exists(candidates_dir):
+        return []
+
+    models_found = set()
+    for filename in os.listdir(candidates_dir):
+        if filename.startswith('evaluation_sql_metrics_') and filename.endswith('_vs_ground_truth.json'):
+            model_id = filename[len('evaluation_sql_metrics_'):-len('_vs_ground_truth.json')]
+            if model_id:
+                models_found.add(model_id)
+
+    return sorted(models_found)
+
+
+_SYSTEM_MODELS = _collect_models_from_candidates('candidates') or [
     'deepseek-chat',
     'qwen2.5-coder_32b',
     'qwen3-coder_30b',
     'cogito_70b',
-    'codellama_70b',
     'codestral_22b',
-    'sqlcoder_15b',
 ]
 
 models = [readable_model_label(m) for m in _SYSTEM_MODELS]
@@ -488,6 +503,62 @@ def _pick_selected_model_from_leaderboard(row, selector_model, dataset_name):
     return row.get('selected_candidate_model')
 
 
+def _pick_selected_model_from_pairwise_row(row, selector_model, dataset_name, allowed_models=None):
+    """Pick winning candidate model for a row, optionally filtered to allowed model ids."""
+    allowed_set = set(allowed_models) if allowed_models else None
+
+    candidate_models = row.get('candidate_models') or []
+    if allowed_set is not None and candidate_models:
+        candidate_models = [m for m in candidate_models if m in allowed_set]
+
+    judgments = row.get('pairwise_judgments') or []
+    if isinstance(judgments, list) and judgments and candidate_models:
+        wins = {m: 0 for m in candidate_models}
+        for judgment in judgments:
+            if not isinstance(judgment, dict):
+                continue
+            model_a = judgment.get('model_a')
+            model_b = judgment.get('model_b')
+            if model_a not in wins or model_b not in wins:
+                continue
+
+            winner = judgment.get('winner')
+            if winner in wins:
+                wins[winner] += 1
+
+        if wins:
+            top_score = max(wins.values())
+            top_models = [m for m, v in wins.items() if v == top_score]
+            if top_models:
+                seed = f"{selector_model}|{dataset_name}|{row.get('db_id')}|{row.get('question_id')}"
+                return random.Random(seed).choice(sorted(top_models))
+
+    leaderboard = row.get('leaderboard') or []
+    if isinstance(leaderboard, list) and leaderboard:
+        filtered = []
+        for item in leaderboard:
+            if not isinstance(item, dict):
+                continue
+            model_name = item.get('model')
+            if not model_name:
+                continue
+            if allowed_set is not None and model_name not in allowed_set:
+                continue
+            filtered.append(item)
+
+        if filtered:
+            top_score = max(x.get('wins', 0) for x in filtered)
+            top_models = [x.get('model') for x in filtered if x.get('wins', 0) == top_score and x.get('model')]
+            if top_models:
+                seed = f"{selector_model}|{dataset_name}|{row.get('db_id')}|{row.get('question_id')}"
+                return random.Random(seed).choice(sorted(top_models))
+
+    selected = row.get('selected_candidate_model')
+    if allowed_set is None or selected in allowed_set:
+        return selected
+    return None
+
+
 @st.cache_data
 def load_model_results():
     """Load canonical metrics for candidate models (real BIRD + fake non-BIRD)."""
@@ -518,7 +589,7 @@ def load_model_results():
                 })
 
         fake_execution_path = os.path.join(FAKE_DATA_DIR, 'fake_execution_metrics.json')
-        if os.path.exists(fake_execution_path):
+        if (not DEVELOPMENT_MODE) and os.path.exists(fake_execution_path):
             with open(fake_execution_path, 'r', encoding='utf-8') as f:
                 fake_rows = json.load(f)
 
@@ -615,7 +686,7 @@ def load_selector_ground_truth_results():
                     })
 
     fake_pairwise_selector_path = os.path.join(FAKE_DATA_DIR, 'fake_selector_pairwise_results.json')
-    if os.path.exists(fake_pairwise_selector_path):
+    if (not DEVELOPMENT_MODE) and os.path.exists(fake_pairwise_selector_path):
         with open(fake_pairwise_selector_path, 'r', encoding='utf-8') as f:
             fake_pairwise_payload = json.load(f)
 
@@ -724,7 +795,7 @@ def load_embedding_selector_results():
                     })
 
     fake_embedding_path = os.path.join(FAKE_DATA_DIR, 'fake_embedding_selection.json')
-    if os.path.exists(fake_embedding_path):
+    if (not DEVELOPMENT_MODE) and os.path.exists(fake_embedding_path):
         with open(fake_embedding_path, 'r', encoding='utf-8') as f:
             fake_payload = json.load(f)
 
@@ -881,6 +952,101 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
 
     return rows
 
+
+def compute_realtime_pairwise_selector_rows(active_queries, selected_models, selected_metric_keys, selected_selector_models):
+    """Compute pairwise-selector rows using currently selected candidate models."""
+    if active_queries.empty or not selected_metric_keys or not selected_selector_models:
+        return []
+
+    # Pairwise selector artifacts currently map to BIRD Developer queries.
+    bird_queries = active_queries[active_queries['dataset'] == 'BIRD Developer']
+    if bird_queries.empty:
+        return []
+
+    selected_candidate_systems = {
+        MODEL_TO_SYSTEM_ID.get(name)
+        for name in selected_models
+        if MODEL_TO_SYSTEM_ID.get(name)
+    }
+    if len(selected_candidate_systems) < 2:
+        return []
+
+    active_query_keys = {
+        (str(row['database']), int(row['id']))
+        for _, row in bird_queries[['database', 'id']].iterrows()
+    }
+    bird_lookup = load_bird_metrics_lookup()
+
+    rows = []
+    seen = set()
+    pairwise_dir = 'pairwise_results'
+    if not os.path.exists(pairwise_dir):
+        return rows
+
+    selected_selector_set = set(selected_selector_models)
+    for filename in os.listdir(pairwise_dir):
+        if not filename.endswith('_pairwise_selector_results.json'):
+            continue
+
+        path = os.path.join(pairwise_dir, filename)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+        except Exception:
+            continue
+
+        selector_model = payload.get('selector_model', 'deepseek-chat')
+        if selector_model not in selected_selector_set:
+            continue
+
+        source_label = selector_source_label(selector_model)
+
+        for row in payload.get('results', []):
+            if not isinstance(row, dict):
+                continue
+
+            query_id = row.get('question_id')
+            db_id = row.get('db_id')
+            if query_id is None or db_id is None:
+                continue
+
+            query_key = (str(db_id), int(query_id))
+            if query_key not in active_query_keys:
+                continue
+
+            selected_model = _pick_selected_model_from_pairwise_row(
+                row=row,
+                selector_model=selector_model,
+                dataset_name='BIRD Developer',
+                allowed_models=selected_candidate_systems,
+            )
+            if not selected_model:
+                continue
+
+            metric_block = bird_lookup.get((str(db_id), int(query_id), selected_model), {})
+            for metric_key in selected_metric_keys:
+                metric_value = metric_block.get(metric_key)
+                if not isinstance(metric_value, (int, float)):
+                    continue
+
+                dedup_key = ('BIRD Developer', int(query_id), str(db_id), source_label, metric_key)
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+
+                rows.append(
+                    {
+                        'dataset': 'BIRD Developer',
+                        'database': str(db_id),
+                        'id': int(query_id),
+                        'model': source_label,
+                        'metric': metric_key,
+                        'value': metric_value,
+                    }
+                )
+
+    return rows
+
 def collect_active_results(active_queries, selected_models, selected_metrics_dict, selected_selectors_dict=None, selected_selector_models=None):
     """
     Collect all relevant results for active queries based on selections.
@@ -921,16 +1087,14 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
     selector_rows = []
     selector_enabled = selected_selectors_dict.get('single_selector', False)
     embedding_selector_enabled = selected_selectors_dict.get('embedding_selector', False)
-    selected_selector_sources = [selector_source_label(s) for s in selected_selector_models]
 
-    if selector_enabled and selected_metric_keys and selected_selector_sources and not all_selector_results.empty:
-        selector_df = all_selector_results[
-            all_selector_results['g_id'].isin(active_g_ids) &
-            all_selector_results['model'].isin(selected_selector_sources) &
-            all_selector_results['metric'].isin(selected_metric_keys)
-        ].copy()
-        if not selector_df.empty:
-            selector_rows = selector_df.to_dict(orient='records')
+    if selector_enabled and selected_metric_keys and selected_selector_models:
+        selector_rows = compute_realtime_pairwise_selector_rows(
+            active_queries=active_queries,
+            selected_models=selected_models,
+            selected_metric_keys=selected_metric_keys,
+            selected_selector_models=selected_selector_models,
+        )
 
     if embedding_selector_enabled and selected_metric_keys:
         realtime_rows = compute_realtime_embedding_selector_rows(active_queries, selected_models, selected_metric_keys)
@@ -950,9 +1114,9 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
 metrics = [
     {"name": "Execution Accuracy", "key": "execution_accuracy", "default": True, "tooltip": "Execution-level correctness compared with ground truth."},
     {"name": "Exact Match", "key": "exact_match", "default": True, "tooltip": "Exact SQL string/structure match against ground truth."},
-    {"name": "SQL F1", "key": "sql_f1_score", "default": True, "tooltip": "SQL-level F1 score from precision/recall matching."},
-    {"name": "Response F1", "key": "response_schema_f1_score", "default": True, "tooltip": "F1 score on response schema alignment."},
-    {"name": "Cell F1", "key": "cell_f1_score", "default": True, "tooltip": "F1 score over cell-level result values."},
+    {"name": "SQL F1 Score", "key": "sql_f1_score", "default": True, "tooltip": "SQL-level F1 score from precision/recall matching."},
+    {"name": "Response Schema F1 Score", "key": "response_schema_f1_score", "default": True, "tooltip": "F1 score on response schema alignment."},
+    {"name": "Cell F1 Score", "key": "cell_f1_score", "default": True, "tooltip": "F1 score over cell-level result values."},
 ]
 
 selectors = [
@@ -960,78 +1124,67 @@ selectors = [
     {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."}
 ]
 
-# Color definitions - organized by color families
-model_colors = {
-    "DeepSeek Chat": "#246BCE",
-    "Qwen2.5 Coder 32B": "#1C9A79",
-    "Qwen3 Coder 30B": "#F39C12",
-    "Cogito 70B": "#C0392B",
-    "CodeLlama 70B": "#8D6E63",
-    "Codestral 22B": "#5D6D7E",
-    "SQLCoder 15B": "#16A085",
-}
+# Deterministic color pools (assignment remains hash-based at runtime).
+# Tuned for stronger separation and better readability on light backgrounds.
+MODEL_SELECTOR_COLOR_POOL = [
+    "#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#A6761D", "#1B9E77", "#E7298A", "#7570B3", "#66A61E", "#E6AB02"
+]
+DATASET_COLOR_POOL = [
+    "#3A86FF", "#2A9D8F", "#BC6C25", "#6A4C93", "#FF006E", "#4D908E", "#8E7DBE", "#0A9396", "#B56576", "#577590", "#E07A5F", "#4361EE"
+]
+METRIC_COLOR_POOL = [
+    "#264653", "#C1121F", "#5F0F40", "#0077B6", "#6A994E", "#9A031E", "#0F4C5C", "#8D0801", "#3D405B", "#005F73", "#7B2CBF", "#2B2D42"
+]
+SELECTOR_BAR_COLOR_POOL = [
+    "#7F5539", "#B56576", "#6D597A", "#2A9D8F", "#8A5A44", "#4D908E", "#C97064", "#6C757D"
+]
 
-dataset_colors = {
-    "BIRD Training": "#E85D04",  # Dark orange
-    "BIRD Developer": "#FF9500",  # Bright orange
-    "SPIDER Training": "#FFBB66",  # Light orange
-    "SPIDER Dev": "#FFC98A",  # Pale orange
-    "SPIDER Test": "#FFD9AD",  # Soft orange
-}
 
-metric_colors = {
-    "execution_accuracy": "#D1495B",
-    "exact_match": "#0F4C81",
-    "sql_f1_score": "#6C5CE7",
-    "response_schema_f1_score": "#2E86AB",
-    "cell_f1_score": "#00A878",
-}
+def _pick_color_deterministically(token, pool):
+    if not pool:
+        return "#666666"
+    idx = fast_hash_int(str(token), digest_size=8) % len(pool)
+    return pool[idx]
 
-selectors_colors = {
-    "single_selector": "#6A1B9A",  # Purple
-    "embedding_selector": "#8E44AD",  # Violet
-    "llms_ensemble": "#AB47BC"  # Light purple
-}
+
+def _hex_to_rgba(hex_color, alpha=0.15):
+    h = str(hex_color).strip().lstrip("#")
+    if len(h) != 6:
+        return f"rgba(120, 120, 120, {alpha})"
+    r = int(h[0:2], 16)
+    g = int(h[2:4], 16)
+    b = int(h[4:6], 16)
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def get_model_color(model_name):
+    return _pick_color_deterministically(f"model|{model_name}", MODEL_SELECTOR_COLOR_POOL)
+
+
+def get_selector_color(selector_key):
+    return _pick_color_deterministically(f"selector|{selector_key}", MODEL_SELECTOR_COLOR_POOL)
+
+
+def get_dataset_color(dataset_name):
+    return _pick_color_deterministically(f"dataset|{dataset_name}", DATASET_COLOR_POOL)
+
+
+def get_metric_color(metric_key):
+    return _pick_color_deterministically(f"metric|{metric_key}", METRIC_COLOR_POOL)
+
+
+def get_selector_bar_color(source_name):
+    return _pick_color_deterministically(f"selector-bar|{source_name}", SELECTOR_BAR_COLOR_POOL)
+
+
+def get_dataset_bg_color(dataset_name):
+    return _hex_to_rgba(get_dataset_color(dataset_name), alpha=0.15)
 
 st.set_page_config(layout="wide")
 
 # Define CSS styles for colors
 st.markdown("""
 <style>
-/* Model colors - Blue family */
-.color-deepseek { color: #246BCE !important; }
-.color-qwen25 { color: #1C9A79 !important; }
-.color-qwen3 { color: #F39C12 !important; }
-.color-cogito { color: #C0392B !important; }
-
-/* Dataset colors - Orange family */
-.color-bird-training { color: #E85D04 !important; }
-.color-bird-developer { color: #FF9500 !important; }
-.color-spider-training { color: #FFBB66 !important; }
-.color-spider-dev { color: #FFC98A !important; }
-.color-spider-test { color: #FFD9AD !important; }
-
-/* Metric colors - Green family */
-.color-exact-match { color: #0F4C81 !important; }
-.color-response-f1 { color: #2E86AB !important; }
-.color-cell-f1 { color: #00A878 !important; }
-.color-sql-f1 { color: #6C5CE7 !important; }
-.color-execution-accuracy { color: #D1495B !important; }
-            
-/* Selector colors Grey/Purple family */
-.color-single-selector { color: #6A1B9A !important; }
-.color-embedding-selector { color: #8E44AD !important; }
-
-/* Background colors for conditional boxes */
-.bg-bird-training { background-color: rgba(232, 93, 4, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-bird-developer { background-color: rgba(255, 149, 0, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-spider-training { background-color: rgba(255, 187, 102, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-spider-dev { background-color: rgba(255, 201, 138, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-spider-test { background-color: rgba(255, 217, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-tdex { background-color: rgba(106, 27, 154, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-embedding-selector { background-color: rgba(142, 68, 173, 0.15) !important; padding: 10px; border-radius: 5px; }
-.bg-llm-judge { background-color: rgba(206, 147, 216, 0.15) !important; padding: 10px; border-radius: 5px; }
-
 /* Utility */
 .text-item { margin-top: -5px; }
 
@@ -1080,53 +1233,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
-# Helper functions to get CSS class names
-def get_model_class(model_name):
-    class_map = {
-        "DeepSeek Chat": "color-deepseek",
-        "Qwen2.5 Coder 32B": "color-qwen25",
-        "Qwen3 Coder 30B": "color-qwen3",
-        "Cogito 70B": "color-cogito",
-    }
-    return class_map.get(model_name, "")
-
-def get_dataset_class(dataset_name):
-    class_map = {
-        "BIRD Training": "color-bird-training",
-        "BIRD Developer": "color-bird-developer",
-        "SPIDER Training": "color-spider-training",
-        "SPIDER Dev": "color-spider-dev",
-        "SPIDER Test": "color-spider-test",
-    }
-    return class_map.get(dataset_name, "")
-
-def get_dataset_bg_class(dataset_name):
-    class_map = {
-        "BIRD Training": "bg-bird-training",
-        "BIRD Developer": "bg-bird-developer",
-        "SPIDER Training": "bg-spider-training",
-        "SPIDER Dev": "bg-spider-dev",
-        "SPIDER Test": "bg-spider-test",
-    }
-    return class_map.get(dataset_name, "")
-
-def get_metric_class(metric_key):
-    class_map = {
-        "execution_accuracy": "color-execution-accuracy",
-        "exact_match": "color-exact-match",
-        "sql_f1_score": "color-sql-f1",
-        "response_schema_f1_score": "color-response-f1",
-        "cell_f1_score": "color-cell-f1",
-    }
-    return class_map.get(metric_key, "")
-
-def get_selector_class(selector_key):
-    class_map = {
-        "single_selector": "color-single-selector",
-        "embedding_selector": "color-embedding-selector"
-    }
-    return class_map.get(selector_key, "")
 
 def filter_queries(queries_df, length_range, tables_range, attributes_range=None):
     """
@@ -1244,7 +1350,7 @@ def normalize_slider_bounds(range_tuple):
 
 st.title("Demo Paper")
 
-columns = st.columns(2)
+columns = st.columns([1, 2])
 
 with columns[0]:
     st.header("Widgets")
@@ -1264,12 +1370,12 @@ with columns[0]:
             st.markdown('<div class="tooltip-container"><h3>Model Selection</h3><span class="tooltip-text">Select candidate models to display in the chart</span></div>', unsafe_allow_html=True)
             selected_models = []
             for i, model in enumerate(models):
-                css_class = get_model_class(model)
+                model_color = get_model_color(model)
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
                     checked = st.checkbox("", value=False, key=f"model_{i}", label_visibility="collapsed")
                 with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
                 if checked:
                     selected_models.append(model)
         
@@ -1278,12 +1384,12 @@ with columns[0]:
             st.markdown('<div class="tooltip-container"><h3>Metric Selection</h3><span class="tooltip-text">Choose evaluation metrics for query assessment</span></div>', unsafe_allow_html=True)
             selected_metrics = {}
             for metric in metrics:
-                css_class = get_metric_class(metric["key"])
+                metric_color = get_metric_color(metric["key"])
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
                     checked = st.checkbox("", value=metric["default"], key=f"metric_{metric['key']}", label_visibility="collapsed")
                 with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{metric_color};">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_metrics[metric["key"]] = checked
         
         # Dataset Selection
@@ -1291,14 +1397,14 @@ with columns[0]:
             st.markdown('<div class="tooltip-container"><h3>Dataset Selection</h3><span class="tooltip-text">Select benchmark datasets for evaluation</span></div>', unsafe_allow_html=True)
             selected_datasets = []
             for i, dataset in enumerate(datasets):
-                css_class = get_dataset_class(dataset)
+                dataset_color = get_dataset_color(dataset)
                 dataset_enabled = DATASET_FLAGS.get(dataset, True)
                 dataset_label = dataset if dataset_enabled else f"{dataset} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
                     checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
                 with col2:
-                    st.markdown(f'<p class="{css_class} text-item">{dataset_label}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="text-item" style="color:{dataset_color};">{dataset_label}</p>', unsafe_allow_html=True)
                 if checked:
                     selected_datasets.append(dataset)
             st.caption("Data can come from real or generated sources, depending on availability.")
@@ -1315,13 +1421,13 @@ with columns[0]:
                 if dataset_name not in databases:
                     continue
 
-                css_class = get_dataset_class(dataset_name)
-                bg_class = get_dataset_bg_class(dataset_name)
+                dataset_color = get_dataset_color(dataset_name)
+                dataset_bg_color = get_dataset_bg_color(dataset_name)
                 dataset_dbs = databases[dataset_name]
 
                 with st.container(border=True, height=250):
                     st.markdown(
-                        f'<div class="tooltip-container"><h3 class="{css_class}">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>',
+                        f'<div class="tooltip-container"><h3 style="color:{dataset_color};">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>',
                         unsafe_allow_html=True
                     )
                     for db_idx, db in enumerate(dataset_dbs):
@@ -1334,7 +1440,7 @@ with columns[0]:
                                 label_visibility="collapsed"
                             )
                         with col2:
-                            st.markdown(f'<div class="{bg_class}">{db}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="background-color:{dataset_bg_color}; padding:10px; border-radius:5px;">{db}</div>', unsafe_allow_html=True)
                         if checked:
                             selected_databases.append(db)
 
@@ -1345,7 +1451,7 @@ with columns[0]:
             st.markdown('<div class="tooltip-container"><h3>Selector Modes</h3><span class="tooltip-text">Select which selector pipelines to include in the chart</span></div>', unsafe_allow_html=True)
             selected_selectors = {}
             for selector in selectors:
-                css_class = get_selector_class(selector["key"])
+                selector_color = get_selector_color(selector["key"])
                 selector_enabled = selector.get("enabled", True)
                 selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
                 col1, col2 = st.columns([0.1, 0.9])
@@ -1358,7 +1464,7 @@ with columns[0]:
                         disabled=not selector_enabled
                     )
                 with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="{css_class} text-item">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{selector_color};">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
                 selected_selectors[selector["key"]] = checked
 
         # Single-selector model choices
@@ -1368,7 +1474,7 @@ with columns[0]:
             selected_selector_models = []
             for option in SELECTOR_MODEL_OPTIONS:
                 key = f"selector_model_{option['key'].replace('.', '_').replace('-', '_')}"
-                css_class = get_model_class(option["name"])
+                model_color = get_model_color(option["name"])
                 col1, col2 = st.columns([0.1, 0.9])
                 with col1:
                     checked = st.checkbox(
@@ -1380,7 +1486,7 @@ with columns[0]:
                     )
                 with col2:
                     st.markdown(
-                        f'<div class="tooltip-container"><p class="{css_class} text-item">{option["name"]}</p><span class="tooltip-text">{option["tooltip"]}</span></div>',
+                        f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{option["name"]}</p><span class="tooltip-text">{option["tooltip"]}</span></div>',
                         unsafe_allow_html=True
                     )
                 if checked:
@@ -1546,9 +1652,9 @@ with columns[1]:
             metric_names = {
                 "execution_accuracy": "Execution Accuracy",
                 "exact_match": "Exact Match",
-                "sql_f1_score": "SQL F1",
-                "response_schema_f1_score": "Response F1",
-                "cell_f1_score": "Cell F1",
+                "sql_f1_score": "SQL F1 Score",
+                "response_schema_f1_score": "Response Schema F1 Score",
+                "cell_f1_score": "Cell F1 Score",
             }
             metric_display = metric_names.get(row['metric'], row['metric'])
             return metric_display
@@ -1578,15 +1684,14 @@ with columns[1]:
         for source_name in visible_sources:
             model_data = grouped_data[grouped_data['model'] == source_name]
 
-            # Selector bars inherit their underlying model color and use hatch patterns.
-            is_selector_source = source_name.endswith(" selector") and source_name != EMBEDDING_SELECTOR_SOURCE_LABEL
+            # Selector bars use a dedicated palette and striped patterns.
+            is_selector_source = source_name.endswith(" selector")
 
             if is_selector_source:
-                base_model_name = selector_source_to_model_label(source_name)
-                trace_color = model_colors.get(base_model_name, selectors_colors.get('single_selector', '#6A1B9A'))
-                pattern_shape = '/'
+                trace_color = get_selector_bar_color(source_name)
+                pattern_shape = '\\' if source_name == EMBEDDING_SELECTOR_SOURCE_LABEL else '/'
             else:
-                trace_color = model_colors.get(source_name, '#888888')
+                trace_color = get_model_color(source_name)
                 pattern_shape = ''
             
             # Ensure all metrics are represented (fill missing with None)

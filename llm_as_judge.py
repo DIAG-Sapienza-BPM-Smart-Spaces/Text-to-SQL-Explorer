@@ -9,8 +9,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain.schema.messages import HumanMessage
 from common_utils import (
     atomic_dump_json,
-    build_pairwise_index,
-    extract_ground_truth_comparison,
 )
 
 # Calculate paths and ensure project root is in sys.path
@@ -49,7 +47,7 @@ Your answer should be in the following format (either ACCEPT or REJECT as the ch
 ---
 <your reasoning>
 ``choice
-<CHOICE>
+<ACCEPT|REJECT>
 ```
 ---
 Example of an answer:
@@ -57,41 +55,6 @@ Example of an answer:
 The natural language query is asking for the names of all customers who have made a purchase in the last month. The evidence provided includes information about the "customers" table, which contains columns such as "customer_id", "name", and "purchase_date". Based on the schema, we can see that the "customers" table has the necessary columns to answer the query. The candidate SQL correctly selects the "name" column from the "customers" table and filters the results based on the "purchase_date" column to include only those customers who made a purchase in the last month. Therefore, the candidate is correct and should be accepted.
 ```choice
 ACCEPT
-```
----
-"""
-    
-llm_prompt_candidate_choice = """
-You are an expert SQL programmer. Given a natural language query, an evidence, the schema of the database, and two SQL candidates, choose the one that is more correct and answer the natural language query using the evidence and the schema.
----
-Evidence:
----
-{evidence}
----
-Database schema (with information about tables, column names/types, primary keys and foreign keys):
----
-{schema}
----
-Candidate 1:
----
-{query_1}
----
-Candidate 2:
----
-{query_2}
----
-Your answer should be in the following format:
----
-<your reasoning>
-``choice
-<CANDIDATE>
-```
----
-Example of an answer:
----
-The natural language query is asking for the names of all customers who have made a purchase in the last month. The evidence provided includes information about the "customers" table, which contains columns such as "customer_id", "name", and "purchase_date". Based on the schema, we can see that the "customers" table has the necessary columns to answer the query. Candidate 1 correctly selects the "name" column from the "customers" table and filters the results based on the "purchase_date" column to include only those customers who made a purchase in the last month. Candidate 2, on the other hand, does not include the necessary filter on the "purchase_date" column, which means it would return all customers regardless of when they made a purchase. Therefore, Candidate 1 is the correct choice.
-```choice
-CANDIDATE 1
 ```
 ---
 """
@@ -109,13 +72,13 @@ def initialize_llm(model: str, api_key: str, verbose: int = 1):
         print(f"[init] WARNING: unsupported model '{model}', returning None")
     return None
 
-def judge(database, query, query_id, schema_file, evidence, judge_arguments, mode = "binary_choice", verbose: int = 1):
+def judge(database, query, query_id, schema_file, evidence, judge_arguments, verbose: int = 1):
 
     model = judge_arguments["model"]
     llm = judge_arguments["llm"]
 
     if verbose >= 1:
-        print(f"[judge] query_id={query_id} | db={database} | mode={mode} | judge={model}")
+        print(f"[judge] query_id={query_id} | db={database} | mode=binary | judge={model}")
 
     schema_info = judge_arguments.get("schema_info")
     if schema_info is None:
@@ -133,25 +96,14 @@ def judge(database, query, query_id, schema_file, evidence, judge_arguments, mod
     if verbose >= 2:
         print(f"[judge] Schema loaded for '{database}': {list(schema_formatted.get('column_by_table', {}).keys())} tables")
 
-    if mode == "binary_choice":
-        candidate = judge_arguments["candidate"]
-        candidate_model = judge_arguments["candidate_model"]
-        llm_prompt = llm_prompt_binary_choice
-        prompt = llm_prompt.format(question=query, evidence=evidence, schema=schema_formatted, query=candidate)
-        if verbose >= 2:
-            print(f"[judge] Question  : {query}")
-            print(f"[judge] Evidence  : {evidence}")
-            print(f"[judge] Candidate SQL ({candidate_model}): {candidate}")
-    elif mode == "candidate_choice":
-        candidate_model_1 = judge_arguments["candidate_1_model"]
-        candidate_1 = judge_arguments["candidate_1"]
-        candidate_model_2 = judge_arguments["candidate_2_model"]
-        candidate_2 = judge_arguments["candidate_2"]
-        llm_prompt = llm_prompt_candidate_choice
-        prompt = llm_prompt.format(query=query, evidence=evidence, schema=schema_formatted, query_1=candidate_1, query_2=candidate_2)
-        if verbose >= 2:
-            print(f"[judge] Candidate 1 ({candidate_model_1}): {candidate_1}")
-            print(f"[judge] Candidate 2 ({candidate_model_2}): {candidate_2}")
+    candidate = judge_arguments["candidate"]
+    candidate_model = judge_arguments["candidate_model"]
+    llm_prompt = llm_prompt_binary_choice
+    prompt = llm_prompt.format(question=query, evidence=evidence, schema=schema_formatted, query=candidate)
+    if verbose >= 2:
+        print(f"[judge] Question  : {query}")
+        print(f"[judge] Evidence  : {evidence}")
+        print(f"[judge] Candidate SQL ({candidate_model}): {candidate}")
 
     if verbose >= 2:
         print("[judge] --- Prompt sent to LLM ---")
@@ -180,7 +132,10 @@ def judge(database, query, query_id, schema_file, evidence, judge_arguments, mod
     if choice.startswith("choice\n"):
         choice = choice[len("choice\n"):].strip()
 
-    choice = choice.strip()
+    choice = choice.strip().upper()
+
+    if choice not in ("ACCEPT", "REJECT"):
+        choice = "INVALID CHOICE"
 
     if verbose >= 1:
         print(f"[judge] → choice: {choice}")
@@ -192,24 +147,13 @@ def judge(database, query, query_id, schema_file, evidence, judge_arguments, mod
         f.write(choice + "\n\n")
     '''
     
-    if mode == "binary_choice":
-        result = {
-            "Query ID": query_id,
-            "Database": database,
-            "Judge Model": model,
-            "Reasoning": reasoning,
-            "choice": choice
-        }
-    elif mode == "candidate_choice":
-        result = {
-            "Query ID": query_id,
-            "Database": database,
-            "Judge Model": model,
-            "Model 1": candidate_model_1,
-            "Model 2": candidate_model_2,
-            "Reasoning": reasoning,
-            "choice": choice
-        }
+    result = {
+        "Query ID": query_id,
+        "Database": database,
+        "Judge Model": model,
+        "Reasoning": reasoning,
+        "choice": choice
+    }
     
     return result
 
@@ -226,7 +170,7 @@ def _judge_single_row_job(
     evidence: str,
     candidate_sql: str,
     schema_info: Dict[str, Any],
-    gt_execution: Optional[Dict[str, Any]],
+    candidate_metrics: Optional[Dict[str, Any]],
     verbose: int,
 ) -> Tuple[Dict[str, Any], bool]:
     """Run one binary judgement job and return (result, is_error)."""
@@ -244,7 +188,6 @@ def _judge_single_row_job(
                 "candidate": candidate_sql,
                 "schema_info": schema_info,
             },
-            mode="binary_choice",
             verbose=verbose,
         )
 
@@ -252,7 +195,7 @@ def _judge_single_row_job(
         judge_result["db_id"] = str(db_id)
         judge_result["candidate_model"] = candidate_model
         judge_result["candidate_sql"] = candidate_sql
-        judge_result["execution_vs_ground_truth"] = gt_execution
+        judge_result["candidate_metrics"] = candidate_metrics
         return judge_result, False
     except Exception as exc:
         if verbose >= 0:
@@ -264,7 +207,7 @@ def _judge_single_row_job(
             "candidate_sql": candidate_sql,
             "choice": "ERROR",
             "Reasoning": str(exc),
-            "execution_vs_ground_truth": gt_execution,
+            "candidate_metrics": candidate_metrics,
         }
         return error_result, True
 
@@ -279,7 +222,6 @@ def compute_binary_choices_for_sqls(
     query_file: str = None,
     sqls_dir: str = "candidates",
     output_dir: str = "binary_choices",
-    pairwise_file: str = "all_pairwise_comparisons.json",
     resume: bool = True,
     save_every: int = 10,
     num_threads: int = 1,
@@ -319,21 +261,16 @@ def compute_binary_choices_for_sqls(
     sqls_path = _PROJECT_ROOT / sqls_dir
     output_path = _PROJECT_ROOT / output_dir
     output_path.mkdir(parents=True, exist_ok=True)
-
-    pairwise_path = _PROJECT_ROOT / pairwise_file
-    pairwise_payload = load_json_file(str(pairwise_path))
-    pairwise_index = build_pairwise_index(pairwise_payload)
     
     if verbose >= 1:
         print(f"[batch] Current project root: {_PROJECT_ROOT}")
         print(f"[batch] Looking for SQL files in: {sqls_path}")
 
-    sql_files = sorted(sqls_path.glob("*_query_results.json"))
+    sql_files = sorted(sqls_path.glob("evaluation_sql_metrics_*_vs_ground_truth.json"))
 
     if verbose >= 0:
         print(f"[batch] Starting binary choice evaluation — judge={judge_model}, database={database}")
         print(f"[batch] Found {len(sql_files)} model file(s) in '{sqls_dir}'")
-        print(f"[batch] Loaded pairwise comparison index with {len(pairwise_index)} row(s) from '{pairwise_file}'")
         print(f"[batch] Using num_threads={num_threads}")
     if verbose >= 2:
         print(f"[batch] schema_file={schema_file} | query_file={query_file}")
@@ -344,7 +281,6 @@ def compute_binary_choices_for_sqls(
         "database": database,
         "schema_file": schema_file,
         "query_file": query_file,
-        "pairwise_file": pairwise_file,
         "num_threads": num_threads,
         "processed_models": {},
     }
@@ -355,7 +291,11 @@ def compute_binary_choices_for_sqls(
     per_db_schema_info: Dict[str, Dict[str, Any]] = {}
 
     for sql_file in sql_files:
-        candidate_model = sql_file.name.replace("_query_results.json", "")
+        candidate_model = sql_file.name
+        if candidate_model.startswith("evaluation_sql_metrics_") and candidate_model.endswith("_vs_ground_truth.json"):
+            candidate_model = candidate_model[len("evaluation_sql_metrics_") : -len("_vs_ground_truth.json")]
+        else:
+            candidate_model = sql_file.stem
         output_file = output_path / f"{candidate_model}_binary_choices.json"
 
         sql_rows = load_json_file(str(sql_file))
@@ -366,16 +306,6 @@ def compute_binary_choices_for_sqls(
         if resume and output_file.exists():
             existing_payload = load_json_file(str(output_file))
             existing_results = existing_payload.get("results", [])
-            backfilled_count = 0
-            for r in existing_results:
-                db_id = r.get("db_id")
-                qid = r.get("question_id")
-                if db_id is None or qid is None:
-                    continue
-                if "execution_vs_ground_truth" not in r:
-                    pairwise_entry = pairwise_index.get((str(db_id), int(qid)))
-                    r["execution_vs_ground_truth"] = extract_ground_truth_comparison(pairwise_entry, candidate_model)
-                    backfilled_count += 1
             for r in existing_results:
                 db_id = r.get("db_id")
                 qid = r.get("question_id")
@@ -383,8 +313,6 @@ def compute_binary_choices_for_sqls(
                     processed_keys.add((str(db_id), int(qid)))
             if verbose >= 1:
                 print(f"[batch] model={candidate_model} | resuming: skipping {len(processed_keys)} already judged row(s)")
-                if backfilled_count > 0:
-                    print(f"[batch] model={candidate_model} | backfilled execution metadata for {backfilled_count} resumed row(s)")
         elif verbose >= 1:
             print(f"[batch] model={candidate_model} | starting fresh ({len(sql_rows)} row(s) to judge)")
 
@@ -394,8 +322,8 @@ def compute_binary_choices_for_sqls(
         results = list(existing_results)
         processed_since_save = 0
         errors_count = 0
-        gt_metadata_found = 0
-        gt_metadata_missing = 0
+        metrics_found = 0
+        metrics_missing = 0
 
         pending_jobs: List[Dict[str, Any]] = []
 
@@ -448,23 +376,11 @@ def compute_binary_choices_for_sqls(
                     print(f"[batch] Cached schema for db={db_id}")
 
             query_meta = per_db_question_index[db_key].get(int(question_id))
-            pairwise_entry = pairwise_index.get((db_key, int(question_id)))
-            gt_execution = extract_ground_truth_comparison(pairwise_entry, candidate_model)
-            if gt_execution is None:
-                gt_metadata_missing += 1
-                if verbose >= 2:
-                    print(
-                        f"[pairwise] Missing ground_truth comparison for model={candidate_model} "
-                        f"db={db_id} question_id={question_id}"
-                    )
+            candidate_metrics = row if isinstance(row, dict) else None
+            if candidate_metrics is None:
+                metrics_missing += 1
             else:
-                gt_metadata_found += 1
-                if verbose >= 2:
-                    print(
-                        f"[pairwise] Found ground_truth comparison for model={candidate_model} "
-                        f"db={db_id} question_id={question_id} | "
-                        f"performed={gt_execution.get('comparison_performed')}"
-                    )
+                metrics_found += 1
 
             if query_meta is None:
                 if verbose >= 0:
@@ -476,14 +392,14 @@ def compute_binary_choices_for_sqls(
                     "candidate_sql": row.get("extracted_sql") or row.get("generated_sql") or "",
                     "choice": "ERROR",
                     "Reasoning": "No matching question/evidence found in query_file.",
-                    "execution_vs_ground_truth": gt_execution,
+                    "candidate_metrics": candidate_metrics,
                 }
                 results.append(result)
                 processed_keys.add(key)
                 processed_since_save += 1
                 errors_count += 1
             else:
-                candidate_sql = row.get("extracted_sql") or row.get("generated_sql") or ""
+                candidate_sql = row.get("candidate_sql") or row.get("clean_sql") or row.get("extracted_sql") or row.get("generated_sql") or ""
                 if verbose >= 2:
                     print(f"[batch] db={db_id} | question_id={question_id}")
                     print(f"[batch] question : {query_meta['question']}")
@@ -497,7 +413,7 @@ def compute_binary_choices_for_sqls(
                         "evidence": query_meta.get("evidence", ""),
                         "candidate_sql": candidate_sql,
                         "schema_info": per_db_schema_info[db_key],
-                        "gt_execution": gt_execution,
+                        "candidate_metrics": candidate_metrics,
                     }
                 )
 
@@ -507,7 +423,6 @@ def compute_binary_choices_for_sqls(
                     "candidate_model": candidate_model,
                     "schema_file": schema_file,
                     "query_file": query_file,
-                    "pairwise_file": pairwise_file,
                     "total_sql_rows": len(sql_rows),
                     "results": results,
                 }
@@ -534,7 +449,7 @@ def compute_binary_choices_for_sqls(
                         evidence=job["evidence"],
                         candidate_sql=job["candidate_sql"],
                         schema_info=job["schema_info"],
-                        gt_execution=job["gt_execution"],
+                        candidate_metrics=job["candidate_metrics"],
                         verbose=verbose,
                     )
                     for job in pending_jobs
@@ -554,7 +469,6 @@ def compute_binary_choices_for_sqls(
                             "candidate_model": candidate_model,
                             "schema_file": schema_file,
                             "query_file": query_file,
-                            "pairwise_file": pairwise_file,
                             "total_sql_rows": len(sql_rows),
                             "results": results,
                         }
@@ -570,7 +484,6 @@ def compute_binary_choices_for_sqls(
                             "candidate_model": candidate_model,
                             "schema_file": schema_file,
                             "query_file": query_file,
-                            "pairwise_file": pairwise_file,
                             "total_sql_rows": len(sql_rows),
                             "results": results,
                         }
@@ -584,7 +497,6 @@ def compute_binary_choices_for_sqls(
             "candidate_model": candidate_model,
             "schema_file": schema_file,
             "query_file": query_file,
-            "pairwise_file": pairwise_file,
             "total_sql_rows": len(sql_rows),
             "results": results,
         }
@@ -594,8 +506,8 @@ def compute_binary_choices_for_sqls(
             print(f"[batch] ✓ model={candidate_model} complete — {len(results)}/{len(sql_rows)} judged, {errors_count} error(s) → {output_file.name}")
         if verbose >= 1:
             print(
-                f"[pairwise] model={candidate_model} | execution metadata found={gt_metadata_found}, "
-                f"missing={gt_metadata_missing}"
+                f"[batch] model={candidate_model} | candidate metrics attached={metrics_found}, "
+                f"missing={metrics_missing}"
             )
 
         summary["processed_models"][candidate_model] = {
@@ -612,7 +524,7 @@ def compute_binary_choices_for_sqls(
 
 if __name__ == "__main__":
     model = "deepseek-chat"
-    num_threads = 4
+    num_threads = 8
     llm = initialize_llm(model=model, api_key="sk-2675b255bc084d70b188e7fccd0aed15")
     summary = compute_binary_choices_for_sqls(
         judge_model=model,

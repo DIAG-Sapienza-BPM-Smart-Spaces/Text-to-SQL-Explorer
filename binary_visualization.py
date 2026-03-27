@@ -1,7 +1,6 @@
 import json
 import random
 from html import escape
-from itertools import combinations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -9,6 +8,9 @@ import streamlit as st
 
 
 st.set_page_config(page_title="Binary Judge Visualization", layout="wide")
+
+# Development toggle: when True, fake binary data is ignored.
+DEVELOPMENT_MODE = True
 
 
 MODEL_LABELS = {
@@ -21,12 +23,25 @@ MODEL_LABELS = {
 }
 
 QUERY_FILE_TO_DATASET = {
+	"datasets_files/bird/dev.json": "BIRD Developer",
+	"datasets_files/bird/train.json": "BIRD Training",
+	"datasets_files/spider/dev.json": "SPIDER",
+	"datasets_files/spider/test.json": "SPIDER Test",
+	"datasets_files/spider/train_spider.json": "SPIDER",
+	"datasets_files/spider/train_others.json": "SPIDER",
 	"dev.json": "BIRD Developer",
 	"bird_training_queries.json": "BIRD Training",
 	"spider_queries.json": "SPIDER",
 	"train.json": "BIRD Training",
 	"test.json": "SPIDER Test",
 }
+
+
+def normalize_query_file_key(path_value: str) -> str:
+	"""Normalize a query file path so it can be used as a stable dictionary key."""
+	if not path_value:
+		return ""
+	return str(path_value).replace("\\", "/").strip().lower()
 
 
 def to_label(model_name: str) -> str:
@@ -41,6 +56,27 @@ def to_label(model_name: str) -> str:
 def load_json(path: Path) -> Any:
 	with open(path, "r", encoding="utf-8") as f:
 		return json.load(f)
+
+
+def collect_candidate_models_from_folder(project_root: str) -> List[str]:
+	"""Collect candidate model ids from candidates/evaluation_sql_metrics_* files."""
+	root = Path(project_root)
+	candidates_dir = root / "candidates"
+	if not candidates_dir.exists():
+		return []
+
+	prefix = "evaluation_sql_metrics_"
+	suffix = "_vs_ground_truth.json"
+	models = set()
+	for path in candidates_dir.glob(f"{prefix}*{suffix}"):
+		name = path.name
+		if not (name.startswith(prefix) and name.endswith(suffix)):
+			continue
+		model_id = name[len(prefix):-len(suffix)]
+		if model_id:
+			models.add(model_id)
+
+	return sorted(models)
 
 
 @st.cache_data
@@ -95,7 +131,10 @@ def load_query_indexes(project_root: str) -> Dict[str, Dict[Tuple[str, int], Dic
 				"attributes": row.get("attributes"),
 			}
 
-		indexes[path.name] = index
+		rel_key = normalize_query_file_key(str(path.relative_to(root)))
+		indexes[rel_key] = index
+		# Backward-compatibility fallback for payloads that only include file names.
+		indexes.setdefault(path.name, index)
 
 	return indexes
 
@@ -107,9 +146,11 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 	fake_binary_path = root / "fake_data" / "fake_binary_choices.json"
 
 	query_indexes = load_query_indexes(project_root)
+	configured_candidates = collect_candidate_models_from_folder(project_root)
+	configured_candidate_set = set(configured_candidates)
 
 	all_rows: List[Dict[str, Any]] = []
-	candidate_models = set()
+	candidate_models = set(configured_candidates)
 	judge_models = set()
 
 	if binary_dir.exists():
@@ -121,11 +162,18 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 
 			candidate_model = payload.get("candidate_model", "")
 			judge_model = payload.get("judge_model", "")
-			query_file_name = Path(payload.get("query_file", "")).name
-			dataset_name = QUERY_FILE_TO_DATASET.get(query_file_name, "Unknown")
-			query_index = query_indexes.get(query_file_name, {})
+			query_file_raw = payload.get("query_file", "")
+			query_file_name = Path(query_file_raw).name
+			query_file_key = normalize_query_file_key(query_file_raw)
+			dataset_name = QUERY_FILE_TO_DATASET.get(
+				query_file_key,
+				QUERY_FILE_TO_DATASET.get(query_file_name, "Unknown"),
+			)
+			query_index = query_indexes.get(query_file_key, query_indexes.get(query_file_name, {}))
 
-			if candidate_model:
+			if configured_candidate_set and candidate_model and candidate_model not in configured_candidate_set:
+				continue
+			if (not configured_candidate_set) and candidate_model:
 				candidate_models.add(candidate_model)
 			if judge_model:
 				judge_models.add(judge_model)
@@ -149,9 +197,12 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 					continue
 
 				query_meta = query_index.get((str(db_id), qid_int), {})
+				candidate_model_value = row.get("candidate_model", candidate_model)
+				if configured_candidate_set and candidate_model_value not in configured_candidate_set:
+					continue
 
 				enriched_row = {
-					"candidate_model": row.get("candidate_model", candidate_model),
+					"candidate_model": candidate_model_value,
 					"judge_model": row.get("Judge Model", judge_model),
 					"dataset": dataset_name,
 					"db_id": str(db_id),
@@ -167,11 +218,12 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 					"candidate_sql": row.get("candidate_sql", ""),
 					"choice": str(row.get("choice", "")).strip().upper(),
 					"reasoning": row.get("Reasoning", ""),
-					"execution_vs_ground_truth": row.get("execution_vs_ground_truth"),
+					"execution_vs_ground_truth": row.get("execution_vs_ground_truth") or row.get("candidate_metrics"),
+					"candidate_metrics": row.get("candidate_metrics"),
 				}
 				all_rows.append(enriched_row)
 
-	if fake_binary_path.exists():
+	if (not DEVELOPMENT_MODE) and fake_binary_path.exists():
 		try:
 			fake_payload = load_json(fake_binary_path)
 		except Exception:
@@ -196,7 +248,10 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 					continue
 
 				if candidate_model:
-					candidate_models.add(candidate_model)
+					if configured_candidate_set and candidate_model not in configured_candidate_set:
+						continue
+					if not configured_candidate_set:
+						candidate_models.add(candidate_model)
 				if judge_model:
 					judge_models.add(judge_model)
 
@@ -223,7 +278,8 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 					"candidate_sql": row.get("candidate_sql", ""),
 					"choice": str(row.get("choice", "")).strip().upper(),
 					"reasoning": row.get("Reasoning", row.get("reasoning", "")),
-					"execution_vs_ground_truth": row.get("execution_vs_ground_truth"),
+					"execution_vs_ground_truth": row.get("execution_vs_ground_truth") or row.get("candidate_metrics"),
+					"candidate_metrics": row.get("candidate_metrics"),
 				}
 				all_rows.append(enriched_row)
 
@@ -249,76 +305,6 @@ def fmt_float(value: Any) -> str:
 		return f"{float(value):.3f}"
 	except (TypeError, ValueError):
 		return "N/A"
-
-
-def compose_judge_key(mode: str, single_judge: str, ensemble_judges: List[str]) -> str:
-	if mode == "Single":
-		return single_judge
-	return " + ".join(sorted(ensemble_judges))
-
-
-def ensemble_choice_from_votes(votes: List[str]) -> str:
-	accept_count = sum(1 for vote in votes if vote == "ACCEPT")
-	reject_count = sum(1 for vote in votes if vote == "REJECT")
-
-	if accept_count > reject_count:
-		return "ACCEPT"
-	if reject_count > accept_count:
-		return "REJECT"
-	return "UNDECIDED"
-
-
-def build_ensemble_rows(
-	all_rows: List[Dict[str, Any]],
-	candidate_model: str,
-	selected_ensemble: List[str],
-) -> List[Dict[str, Any]]:
-	if len(selected_ensemble) < 2:
-		return []
-
-	selected_set = set(selected_ensemble)
-	grouped: Dict[Tuple[str, int], List[Dict[str, Any]]] = {}
-
-	for row in all_rows:
-		if row.get("candidate_model") != candidate_model:
-			continue
-		judge_name = row.get("judge_model")
-		if judge_name not in selected_set:
-			continue
-
-		key = (row.get("db_id", ""), int(row.get("question_id", -1)))
-		grouped.setdefault(key, []).append(row)
-
-	aggregated_rows: List[Dict[str, Any]] = []
-	for _, rows in grouped.items():
-		present_judges = {r.get("judge_model") for r in rows}
-		if present_judges != selected_set:
-			continue
-
-		votes = [str(r.get("choice", "")).upper() for r in rows]
-		final_choice = ensemble_choice_from_votes(votes)
-
-		# All rows in the group refer to the same candidate SQL/query, so base metadata is shared.
-		base = dict(rows[0])
-		vote_lines = [
-			f"- {to_label(str(r.get('judge_model', 'Unknown')))}: {str(r.get('choice', 'UNKNOWN')).upper()}"
-			for r in sorted(rows, key=lambda x: str(x.get("judge_model", "")))
-		]
-		base["judge_model"] = " + ".join(sorted(selected_set))
-		base["choice"] = final_choice
-		base["reasoning"] = "\n".join(
-			[
-				"Ensemble majority voting over single judges.",
-				"",
-				"Votes:",
-				*vote_lines,
-				"",
-				f"Final decision: {final_choice}",
-			]
-		)
-		aggregated_rows.append(base)
-
-	return aggregated_rows
 
 
 def pick_random_result(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -361,26 +347,40 @@ def render_hover_value(label: str, value: Any, max_chars: int = 80) -> None:
 def render_query_panel(sample: Dict[str, Any]) -> None:
 	st.subheader("Selected Query")
 
-	info_cols = st.columns(5)
+	info_cols = st.columns(3)
 	with info_cols[0]:
 		render_hover_value("Dataset", sample.get("dataset", "Unknown"), max_chars=22)
 	with info_cols[1]:
 		render_hover_value("Database", sample.get("db_id", "Unknown"), max_chars=22)
 	with info_cols[2]:
 		render_hover_value("Query ID", sample.get("question_id", "-"), max_chars=22)
-	with info_cols[3]:
-		render_hover_value("Difficulty", sample.get("difficulty", "N/A"), max_chars=22)
-	with info_cols[4]:
-		render_hover_value("Complexity", sample.get("complexity", "N/A"), max_chars=22)
+
+	nl_query = sample.get("nl_query") or ""
+	if not nl_query:
+		metrics_fallback = sample.get("candidate_metrics") if isinstance(sample.get("candidate_metrics"), dict) else {}
+		nl_query = metrics_fallback.get("question", "") if isinstance(metrics_fallback, dict) else ""
+
+	evidence = sample.get("evidence") or ""
+	if not evidence:
+		metrics_fallback = sample.get("candidate_metrics") if isinstance(sample.get("candidate_metrics"), dict) else {}
+		evidence = metrics_fallback.get("evidence", "") if isinstance(metrics_fallback, dict) else ""
 
 	with st.container(border=True):
-		st.markdown("**NL Query**")
-		render_hover_value("Text", sample.get("nl_query", "Not available"), max_chars=180)
+		query_col, evidence_col = st.columns(2)
 
-		evidence = sample.get("evidence", "")
-		if evidence:
+		with query_col:
+			st.markdown("**Natural Language Query**")
+			if nl_query:
+				st.write(nl_query)
+			else:
+				st.info("Natural language query not available for this sample.")
+
+		with evidence_col:
 			st.markdown("**Evidence**")
-			render_hover_value("Text", evidence, max_chars=180)
+			if evidence:
+				st.write(evidence)
+			else:
+				st.caption("No evidence available for this sample.")
 
 		st.markdown("**Candidate SQL**")
 		st.code(sample.get("candidate_sql", ""), language="sql")
@@ -428,6 +428,9 @@ def render_reasoning_panel(sample: Dict[str, Any]) -> None:
 def render_performance_panel(sample: Dict[str, Any]) -> None:
 	st.subheader("Actual Performance")
 	perf = sample.get("execution_vs_ground_truth")
+	if not isinstance(perf, dict):
+		# Real binary artifacts often expose metric fields under candidate_metrics.
+		perf = sample.get("candidate_metrics")
 
 	with st.container(border=True):
 		if not isinstance(perf, dict):
@@ -441,14 +444,24 @@ def render_performance_panel(sample: Dict[str, Any]) -> None:
 		response_f1_score = perf.get("response_schema_f1_score", perf.get("schema_precision"))
 		cell_f1_score = perf.get("cell_f1_score", perf.get("cell_value_accuracy"))
 
-		metric_cols_top = st.columns(3)
-		metric_cols_top[0].metric("Execution Accuracy", fmt_float(execution_accuracy))
-		metric_cols_top[1].metric("Exact Match", fmt_float(exact_match))
-		metric_cols_top[2].metric("SQL F1", fmt_float(sql_f1_score))
+		metric_rows = [
+			("Execution Accuracy", fmt_float(execution_accuracy)),
+			("Exact Match", fmt_float(exact_match)),
+			("SQL F1 Score", fmt_float(sql_f1_score)),
+			("Response Schema F1 Score", fmt_float(response_f1_score)),
+			("Cell F1 Score", fmt_float(cell_f1_score)),
+		]
 
-		metric_cols_bottom = st.columns(2)
-		metric_cols_bottom[0].metric("Response F1", fmt_float(response_f1_score))
-		metric_cols_bottom[1].metric("Cell F1", fmt_float(cell_f1_score))
+		for metric_name, metric_value in metric_rows:
+			st.markdown(
+				f"""
+				<div style=\"display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid rgba(148,163,184,0.2);\">
+					<div style=\"font-size:0.95rem;color:#94a3b8;\">{escape(metric_name)}</div>
+					<div style=\"font-size:1.15rem;font-weight:700;\">{escape(metric_value)}</div>
+				</div>
+				""",
+				unsafe_allow_html=True,
+			)
 
 		comparison_flag = perf.get("comparison_performed")
 		if comparison_flag is True:
@@ -476,50 +489,31 @@ def main() -> None:
 		)
 		return
 
-	known_models = sorted({*candidate_models, *judge_models})
-	ensemble_options = [" + ".join(combo) for r in range(2, len(known_models) + 1) for combo in combinations(known_models, r)]
-
 	left_col, right_col = st.columns([0.85, 2.35], gap="large")
 
 	with left_col:
 		with st.container(border=True):
 			st.subheader("Selection")
-			selected_ensemble: List[str] = []
 			selected_candidate = st.selectbox(
 				"Candidate model",
 				options=candidate_models,
 				format_func=to_label,
 			)
 
-			judge_mode = st.radio("Judge type", options=["Single", "Ensemble"], horizontal=True)
-			if judge_mode == "Single":
-				single_judge = st.selectbox(
-					"Judge",
-					options=judge_models,
-					format_func=to_label,
-				)
-				selected_judge_key = compose_judge_key(judge_mode, single_judge, [])
-			else:
-				selected_ensemble = st.multiselect(
-					"Judge ensemble models",
-					options=known_models,
-					format_func=to_label,
-					default=known_models[:2] if len(known_models) >= 2 else known_models,
-				)
-				selected_judge_key = compose_judge_key(judge_mode, "", selected_ensemble)
-				if selected_judge_key and selected_judge_key not in ensemble_options:
-					st.warning("Choose at least two models to form an ensemble.")
+			single_judge = st.selectbox(
+				"Judge",
+				options=judge_models,
+				format_func=to_label,
+			)
+			selected_judge_key = single_judge
 
 			run_clicked = st.button("Run", type="primary", use_container_width=True)
 
-	if judge_mode == "Single":
-		filtered = [
-			row
-			for row in all_rows
-			if row.get("candidate_model") == selected_candidate and row.get("judge_model") == selected_judge_key
-		]
-	else:
-		filtered = build_ensemble_rows(all_rows, selected_candidate, selected_ensemble)
+	filtered = [
+		row
+		for row in all_rows
+		if row.get("candidate_model") == selected_candidate and row.get("judge_model") == selected_judge_key
+	]
 
 	if run_clicked:
 		sampled = pick_random_result(filtered)
@@ -534,21 +528,21 @@ def main() -> None:
 
 	sample = st.session_state.get("binary_sample")
 	sample_filters = st.session_state.get("binary_filters", {})
+	show_sample = sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}
+
+	with left_col:
+		if show_sample:
+			render_decision_panel(sample)
+			render_performance_panel(sample)
 
 	with right_col:
 		if not filtered:
 			st.warning(
 				"No rows available for the selected candidate/judge combination. "
-				"Try another judge or switch to Single mode."
+				"Try another judge or candidate model."
 			)
 
-		if sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}:
-			top_left, top_right = st.columns([1, 2])
-			with top_left:
-				render_decision_panel(sample)
-			with top_right:
-				render_performance_panel(sample)
-
+		if show_sample:
 			render_query_panel(sample)
 			render_reasoning_panel(sample)
 		else:
