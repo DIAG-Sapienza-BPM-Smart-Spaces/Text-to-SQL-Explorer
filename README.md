@@ -74,11 +74,8 @@ python selector.py
 python generate_fake_visualization_data.py
 ```
 
-6. Run embedding selector pipeline using precomputed similarity artifacts:
 
-```bash
-python embedding_pipeline_selection.py
-```
+There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of fake data
 
 ## Canonical Metrics
 
