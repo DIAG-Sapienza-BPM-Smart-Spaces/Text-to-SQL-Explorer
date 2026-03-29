@@ -934,6 +934,7 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
             continue
 
         selected_system = models_for_query[selected_positions[selected_local_idx]]
+        selected_candidate_label = SYSTEM_ID_TO_MODEL.get(selected_system, readable_model_label(selected_system))
         metric_block = bird_lookup.get((db_id, question_id, selected_system), {})
 
         for metric_key in selected_metric_keys:
@@ -946,6 +947,7 @@ def compute_realtime_embedding_selector_rows(active_queries, selected_models, se
                     'database': db_id,
                     'id': question_id,
                     'model': EMBEDDING_SELECTOR_SOURCE_LABEL,
+                    'selected_candidate': selected_candidate_label,
                     'metric': metric_key,
                     'value': metric_value,
                 }
@@ -1024,6 +1026,8 @@ def compute_realtime_pairwise_selector_rows(active_queries, selected_models, sel
             if not selected_model:
                 continue
 
+            selected_candidate_label = SYSTEM_ID_TO_MODEL.get(selected_model, readable_model_label(selected_model))
+
             metric_block = bird_lookup.get((str(db_id), int(query_id), selected_model), {})
             for metric_key in selected_metric_keys:
                 metric_value = metric_block.get(metric_key)
@@ -1041,6 +1045,7 @@ def compute_realtime_pairwise_selector_rows(active_queries, selected_models, sel
                         'database': str(db_id),
                         'id': int(query_id),
                         'model': source_label,
+                        'selected_candidate': selected_candidate_label,
                         'metric': metric_key,
                         'value': metric_value,
                     }
@@ -1554,7 +1559,7 @@ with columns[0]:
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Query Filters</h3><span class="tooltip-text">Filter queries by discrete SQL length, table involvement, and attribute involvement</span></div>', unsafe_allow_html=True)
             
-            # Show available query info
+            # Show available query info 
             if len(all_selected_queries) > 0:
                 pass
             else:
@@ -1797,8 +1802,31 @@ with columns[1]:
         
         # Display summary statistics
         with st.expander("📊 Summary Statistics"):
+            
+            selector_choice_rows = results_df[
+                results_df['selected_candidate'].notna()
+            ].copy() if 'selected_candidate' in results_df.columns else pd.DataFrame()
+
+            if not selector_choice_rows.empty:
+                # Deduplicate metric-expanded rows so each query contributes one selector choice.
+                selector_choice_rows = selector_choice_rows.drop_duplicates(
+                    subset=['dataset', 'database', 'id', 'model', 'selected_candidate']
+                )
+                selector_choice_counts = (
+                    selector_choice_rows.groupby(['selected_candidate', 'model'])
+                    .size()
+                    .unstack(fill_value=0)
+                    .sort_index(axis=1)
+                )
+                selector_choice_counts['Total'] = selector_choice_counts.sum(axis=1)
+                selector_choice_counts = selector_choice_counts.sort_values('Total', ascending=False)
+                st.markdown("**Selector Choice Counts by Candidate**")
+                st.dataframe(selector_choice_counts, use_container_width=True)
+                
             summary_pivot = grouped_data.pivot(index='metric_label', columns='model', values='value').round(2)
             st.dataframe(summary_pivot, use_container_width=True)
+
+            
     else:
         st.info("👈 Select models, metrics, datasets, and databases from the left panel to see the visualization.")
         st.caption("The bar chart will display model performance grouped by metrics with values ranging from 0% to 100%.")
