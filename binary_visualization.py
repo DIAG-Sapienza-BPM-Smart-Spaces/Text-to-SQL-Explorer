@@ -1,4 +1,5 @@
 import json
+import os
 import random
 from html import escape
 from pathlib import Path
@@ -7,7 +8,18 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 
 
-st.set_page_config(page_title="Binary Judge Visualization", layout="wide")
+def _safe_set_page_config() -> None:
+	"""Set page config when running standalone, skip when embedded."""
+	if os.environ.get("STREAMLIT_EMBEDDED_MODE") == "1":
+		return
+	try:
+		st.set_page_config(page_title="Binary Judge Visualization", layout="wide")
+	except Exception:
+		# Streamlit only allows setting page config once per app run.
+		pass
+
+
+_safe_set_page_config()
 
 # Development toggle: when True, fake binary data is ignored.
 DEVELOPMENT_MODE = True
@@ -344,8 +356,11 @@ def render_hover_value(label: str, value: Any, max_chars: int = 80) -> None:
 	)
 
 
-def render_query_panel(sample: Dict[str, Any]) -> None:
-	st.subheader("Selected Query")
+def render_query_details_panel(sample: Dict[str, Any], compact: bool = False) -> None:
+	if compact:
+		st.markdown("##### Query Details")
+	else:
+		st.subheader("Selected Query")
 
 	info_cols = st.columns(3)
 	with info_cols[0]:
@@ -366,22 +381,26 @@ def render_query_panel(sample: Dict[str, Any]) -> None:
 		evidence = metrics_fallback.get("evidence", "") if isinstance(metrics_fallback, dict) else ""
 
 	with st.container(border=True):
-		query_col, evidence_col = st.columns(2)
+		st.markdown("**Natural Language Query**")
+		if nl_query:
+			st.write(nl_query)
+		else:
+			st.info("Natural language query not available for this sample.")
 
-		with query_col:
-			st.markdown("**Natural Language Query**")
-			if nl_query:
-				st.write(nl_query)
-			else:
-				st.info("Natural language query not available for this sample.")
+		st.markdown("**Evidence**")
+		if evidence:
+			st.write(evidence)
+		else:
+			st.caption("No evidence available for this sample.")
 
-		with evidence_col:
-			st.markdown("**Evidence**")
-			if evidence:
-				st.write(evidence)
-			else:
-				st.caption("No evidence available for this sample.")
 
+def render_sql_panel(sample: Dict[str, Any], compact: bool = False) -> None:
+	if compact:
+		st.markdown("##### SQL Comparison")
+	else:
+		st.subheader("Selected Query")
+
+	with st.container(border=True):
 		st.markdown("**Candidate SQL**")
 		st.code(sample.get("candidate_sql", ""), language="sql")
 
@@ -391,19 +410,25 @@ def render_query_panel(sample: Dict[str, Any]) -> None:
 			st.code(gt_sql, language="sql")
 
 
-def render_decision_panel(sample: Dict[str, Any]) -> None:
-	st.subheader("Judge Decision")
+def render_decision_panel(sample: Dict[str, Any], compact: bool = False) -> None:
+	if compact:
+		st.markdown("##### Decision")
+	else:
+		st.subheader("Judge Decision")
 	choice = sample.get("choice", "UNKNOWN")
 	color = choice_color(choice)
+	font_size = "24px" if compact else "34px"
+	padding = "10px" if compact else "18px"
+	border_radius = "8px" if compact else "12px"
 
 	st.markdown(
 		f"""
 		<div style="
 			border: 2px solid {color};
-			border-radius: 12px;
-			padding: 18px;
+			border-radius: {border_radius};
+			padding: {padding};
 			text-align: center;
-			font-size: 34px;
+			font-size: {font_size};
 			font-weight: 700;
 			color: {color};
 			background: rgba(148, 163, 184, 0.08);
@@ -415,8 +440,11 @@ def render_decision_panel(sample: Dict[str, Any]) -> None:
 	)
 
 
-def render_reasoning_panel(sample: Dict[str, Any]) -> None:
-	st.subheader("Judge Reasoning")
+def render_reasoning_panel(sample: Dict[str, Any], compact: bool = False) -> None:
+	if compact:
+		st.markdown("##### Reasoning")
+	else:
+		st.subheader("Judge Reasoning")
 	with st.container(border=True):
 		reasoning = sample.get("reasoning", "")
 		if reasoning:
@@ -425,8 +453,11 @@ def render_reasoning_panel(sample: Dict[str, Any]) -> None:
 			st.info("Reasoning not available for this sample.")
 
 
-def render_performance_panel(sample: Dict[str, Any]) -> None:
-	st.subheader("Actual Performance")
+def render_performance_panel(sample: Dict[str, Any], compact: bool = False) -> None:
+	if compact:
+		st.markdown("##### Execution Metrics")
+	else:
+		st.subheader("Actual Performance")
 	perf = sample.get("execution_vs_ground_truth")
 	if not isinstance(perf, dict):
 		# Real binary artifacts often expose metric fields under candidate_metrics.
@@ -452,12 +483,16 @@ def render_performance_panel(sample: Dict[str, Any]) -> None:
 			("Cell F1 Score", fmt_float(cell_f1_score)),
 		]
 
+		label_size = "0.82rem" if compact else "0.95rem"
+		value_size = "0.98rem" if compact else "1.15rem"
+		row_padding = "0.3rem 0" if compact else "0.5rem 0"
+
 		for metric_name, metric_value in metric_rows:
 			st.markdown(
 				f"""
-				<div style=\"display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid rgba(148,163,184,0.2);\">
-					<div style=\"font-size:0.95rem;color:#94a3b8;\">{escape(metric_name)}</div>
-					<div style=\"font-size:1.15rem;font-weight:700;\">{escape(metric_value)}</div>
+				<div style=\"display:flex;justify-content:space-between;align-items:center;padding:{row_padding};border-bottom:1px solid rgba(148,163,184,0.2);\">
+					<div style=\"font-size:{label_size};color:#94a3b8;\">{escape(metric_name)}</div>
+					<div style=\"font-size:{value_size};font-weight:700;\">{escape(metric_value)}</div>
 				</div>
 				""",
 				unsafe_allow_html=True,
@@ -475,12 +510,31 @@ def render_performance_panel(sample: Dict[str, Any]) -> None:
 			st.error(f"Comparison error: {perf['error']}")
 
 
-def main() -> None:
+def main(show_title: bool = True, compact: bool = False) -> None:
 	project_root = Path(__file__).resolve().parent
 	all_rows, candidate_models, judge_models = load_binary_data(str(project_root))
 
-	st.title("Binary Judge Demo")
-	st.caption("Interactive view of ACCEPT/REJECT judgments over candidate SQL queries.")
+	if compact:
+		st.markdown(
+			"""
+			<style>
+			div[data-testid="stSelectbox"] > label,
+			div[data-testid="stButton"] button,
+			div[data-testid="stCaptionContainer"] p {
+				font-size: 0.85rem;
+			}
+			div[data-testid="stButton"] button {
+				padding-top: 0.25rem;
+				padding-bottom: 0.25rem;
+			}
+			</style>
+			""",
+			unsafe_allow_html=True,
+		)
+
+	if show_title:
+		st.title("Binary Judge Demo")
+		st.caption("Interactive view of ACCEPT/REJECT judgments over candidate SQL queries.")
 
 	if not all_rows:
 		st.error(
@@ -489,64 +543,126 @@ def main() -> None:
 		)
 		return
 
-	left_col, right_col = st.columns([0.85, 2.35], gap="large")
+	if compact:
+		control_col, details_col, sql_col = st.columns([0.72, 0.95, 2.25], gap="large")
 
-	with left_col:
-		with st.container(border=True):
-			st.subheader("Selection")
-			selected_candidate = st.selectbox(
-				"Candidate model",
-				options=candidate_models,
-				format_func=to_label,
-			)
+		with control_col:
+			with st.container(border=True):
+				st.markdown("##### Selection")
+				selected_candidate = st.selectbox(
+					"Candidate model",
+					options=candidate_models,
+					format_func=to_label,
+				)
 
-			single_judge = st.selectbox(
-				"Judge",
-				options=judge_models,
-				format_func=to_label,
-			)
-			selected_judge_key = single_judge
+				single_judge = st.selectbox(
+					"Judge",
+					options=judge_models,
+					format_func=to_label,
+				)
+				selected_judge_key = single_judge
 
-			run_clicked = st.button("Run", type="primary", use_container_width=True)
+				run_clicked = st.button("Run", type="primary", use_container_width=True)
 
-	filtered = [
-		row
-		for row in all_rows
-		if row.get("candidate_model") == selected_candidate and row.get("judge_model") == selected_judge_key
-	]
+		filtered = [
+			row
+			for row in all_rows
+			if row.get("candidate_model") == selected_candidate and row.get("judge_model") == selected_judge_key
+		]
 
-	if run_clicked:
-		sampled = pick_random_result(filtered)
-		st.session_state["binary_sample"] = sampled
-		st.session_state["binary_filters"] = {
-			"candidate_model": selected_candidate,
-			"judge_model": selected_judge_key,
-		}
+		if run_clicked:
+			sampled = pick_random_result(filtered)
+			st.session_state["binary_sample"] = sampled
+			st.session_state["binary_filters"] = {
+				"candidate_model": selected_candidate,
+				"judge_model": selected_judge_key,
+			}
 
-	with left_col:
-		st.caption(f"Matching rows: {len(filtered)}")
+		sample = st.session_state.get("binary_sample")
+		sample_filters = st.session_state.get("binary_filters", {})
+		show_sample = sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}
 
-	sample = st.session_state.get("binary_sample")
-	sample_filters = st.session_state.get("binary_filters", {})
-	show_sample = sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}
+		with control_col:
+			st.caption(f"Matching rows: {len(filtered)}")
+			if show_sample:
+				render_decision_panel(sample, compact=True)
 
-	with left_col:
-		if show_sample:
-			render_decision_panel(sample)
-			render_performance_panel(sample)
+		with details_col:
+			if not filtered:
+				st.warning(
+					"No rows available for the selected candidate/judge combination. "
+					"Try another judge or candidate model."
+				)
+			if show_sample:
+				render_query_details_panel(sample, compact=True)
+				render_performance_panel(sample, compact=True)
+			else:
+				st.info("Select the models and click Run to sample one query.")
 
-	with right_col:
-		if not filtered:
-			st.warning(
-				"No rows available for the selected candidate/judge combination. "
-				"Try another judge or candidate model."
-			)
+		with sql_col:
+			if show_sample:
+				render_sql_panel(sample, compact=True)
+				render_reasoning_panel(sample, compact=True)
+			else:
+				st.info("SQL comparison and reasoning will appear here after running a sample.")
+	else:
+		left_col, right_col = st.columns([0.85, 2.35], gap="large")
 
-		if show_sample:
-			render_query_panel(sample)
-			render_reasoning_panel(sample)
-		else:
-			st.info("Select the models and click Run to sample one query and visualize the binary decision.")
+		with left_col:
+			with st.container(border=True):
+				st.subheader("Selection")
+				selected_candidate = st.selectbox(
+					"Candidate model",
+					options=candidate_models,
+					format_func=to_label,
+				)
+
+				single_judge = st.selectbox(
+					"Judge",
+					options=judge_models,
+					format_func=to_label,
+				)
+				selected_judge_key = single_judge
+
+				run_clicked = st.button("Run", type="primary", use_container_width=True)
+
+		filtered = [
+			row
+			for row in all_rows
+			if row.get("candidate_model") == selected_candidate and row.get("judge_model") == selected_judge_key
+		]
+
+		if run_clicked:
+			sampled = pick_random_result(filtered)
+			st.session_state["binary_sample"] = sampled
+			st.session_state["binary_filters"] = {
+				"candidate_model": selected_candidate,
+				"judge_model": selected_judge_key,
+			}
+
+		sample = st.session_state.get("binary_sample")
+		sample_filters = st.session_state.get("binary_filters", {})
+		show_sample = sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}
+
+		with left_col:
+			st.caption(f"Matching rows: {len(filtered)}")
+			if show_sample:
+				render_decision_panel(sample, compact=False)
+				render_performance_panel(sample, compact=False)
+
+		with right_col:
+			if not filtered:
+				st.warning(
+					"No rows available for the selected candidate/judge combination. "
+					"Try another judge or candidate model."
+				)
+
+			if show_sample:
+				render_query_details_panel(sample, compact=False)
+				render_sql_panel(sample, compact=False)
+				render_reasoning_panel(sample, compact=False)
+			else:
+				st.info("Select the models and click Run to sample one query and visualize the binary decision.")
 
 
 if __name__ == "__main__":

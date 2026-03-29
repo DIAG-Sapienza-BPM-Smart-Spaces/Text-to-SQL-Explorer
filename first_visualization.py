@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import os
+from contextlib import nullcontext
 import pandas as pd
 import re
 import random
@@ -561,7 +562,7 @@ def _pick_selected_model_from_pairwise_row(row, selector_model, dataset_name, al
 
 @st.cache_data
 def load_model_results():
-    """Load canonical metrics for candidate models (real BIRD + fake non-BIRD)."""
+    """Load canonical metrics for candidate models."""
     all_rows = []
     seen = set()
 
@@ -1121,7 +1122,7 @@ metrics = [
 
 selectors = [
     {"name": "Pairwise LLM Selector", "key": "single_selector", "default": False, "enabled": True, "tooltip": "Plots pairwise-selector metrics for the selected judge models."},
-    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics from true or generated data."}
+    {"name": "Embedding Selector", "key": "embedding_selector", "default": False, "enabled": True, "tooltip": "Plots embedding selector metrics."}
 ]
 
 # Deterministic color pools (assignment remains hash-based at runtime).
@@ -1180,7 +1181,18 @@ def get_selector_bar_color(source_name):
 def get_dataset_bg_color(dataset_name):
     return _hex_to_rgba(get_dataset_color(dataset_name), alpha=0.15)
 
-st.set_page_config(layout="wide")
+def _safe_set_page_config():
+    """Set page config when running standalone, skip when embedded."""
+    if os.environ.get("STREAMLIT_EMBEDDED_MODE") == "1":
+        return
+    try:
+        st.set_page_config(layout="wide")
+    except Exception:
+        # Streamlit only allows setting page config once per app run.
+        pass
+
+
+_safe_set_page_config()
 
 # Define CSS styles for colors
 st.markdown("""
@@ -1348,12 +1360,28 @@ def normalize_slider_bounds(range_tuple):
         return low, low + 1, (low, low)
     return low, high, (low, high)
 
-st.title("Demo Paper")
+if os.environ.get("FIRST_VIZ_HIDE_TITLE") != "1":
+    st.title("Demo Paper")
+
+_first_viz_embedded = os.environ.get("FIRST_VIZ_HIDE_TITLE") == "1"
+
+if _first_viz_embedded:
+    st.markdown("""
+    <style>
+    /* Compact typography for combined-view widget panel */
+    .tooltip-container h3 { font-size: 1.02rem !important; margin: 0 0 0.25rem 0 !important; }
+    .tooltip-container .tooltip-text { font-size: 13px !important; width: 240px !important; }
+    .text-item { font-size: 0.86rem !important; }
+    div[data-testid="stMarkdownContainer"] p { font-size: 0.86rem; }
+    div[data-testid="stExpander"] summary p { font-size: 0.88rem; }
+    </style>
+    """, unsafe_allow_html=True)
 
 columns = st.columns([1, 2])
 
 with columns[0]:
-    st.header("Widgets")
+    if not _first_viz_embedded:
+        st.header("Widgets")
     st.write("Hover over the widgets to see the tooltips.")
     
     # Crea quattro sottocolonne: la terza ospita i widget Database.
@@ -1369,45 +1397,56 @@ with columns[0]:
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Model Selection</h3><span class="tooltip-text">Select candidate models to display in the chart</span></div>', unsafe_allow_html=True)
             selected_models = []
-            for i, model in enumerate(models):
-                model_color = get_model_color(model)
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox("", value=False, key=f"model_{i}", label_visibility="collapsed")
-                with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
-                if checked:
-                    selected_models.append(model)
+            model_scope = st.expander("Show model list", expanded=False) if _first_viz_embedded else nullcontext()
+            with model_scope:
+                model_scroll = st.container(height=190) if _first_viz_embedded else nullcontext()
+                with model_scroll:
+                    for i, model in enumerate(models):
+                        model_color = get_model_color(model)
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox("", value=False, key=f"model_{i}", label_visibility="collapsed")
+                        with col2:
+                            st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
+                        if checked:
+                            selected_models.append(model)
         
         # Metric Selection
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Metric Selection</h3><span class="tooltip-text">Choose evaluation metrics for query assessment</span></div>', unsafe_allow_html=True)
             selected_metrics = {}
-            for metric in metrics:
-                metric_color = get_metric_color(metric["key"])
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox("", value=metric["default"], key=f"metric_{metric['key']}", label_visibility="collapsed")
-                with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{metric_color};">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
-                selected_metrics[metric["key"]] = checked
+            metric_scope = st.expander("Show metric list", expanded=False) if _first_viz_embedded else nullcontext()
+            with metric_scope:
+                metric_scroll = st.container(height=190) if _first_viz_embedded else nullcontext()
+                with metric_scroll:
+                    for metric in metrics:
+                        metric_color = get_metric_color(metric["key"])
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox("", value=metric["default"], key=f"metric_{metric['key']}", label_visibility="collapsed")
+                        with col2:
+                            st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{metric_color};">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
+                        selected_metrics[metric["key"]] = checked
         
         # Dataset Selection
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Dataset Selection</h3><span class="tooltip-text">Select benchmark datasets for evaluation</span></div>', unsafe_allow_html=True)
             selected_datasets = []
-            for i, dataset in enumerate(datasets):
-                dataset_color = get_dataset_color(dataset)
-                dataset_enabled = DATASET_FLAGS.get(dataset, True)
-                dataset_label = dataset if dataset_enabled else f"{dataset} (disabled)"
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
-                with col2:
-                    st.markdown(f'<p class="text-item" style="color:{dataset_color};">{dataset_label}</p>', unsafe_allow_html=True)
-                if checked:
-                    selected_datasets.append(dataset)
-            st.caption("Data can come from real or generated sources, depending on availability.")
+            dataset_scope = st.expander("Show dataset list", expanded=False) if _first_viz_embedded else nullcontext()
+            with dataset_scope:
+                dataset_scroll = st.container(height=190) if _first_viz_embedded else nullcontext()
+                with dataset_scroll:
+                    for i, dataset in enumerate(datasets):
+                        dataset_color = get_dataset_color(dataset)
+                        dataset_enabled = DATASET_FLAGS.get(dataset, True)
+                        dataset_label = dataset if dataset_enabled else f"{dataset} (disabled)"
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
+                        with col2:
+                            st.markdown(f'<p class="text-item" style="color:{dataset_color};">{dataset_label}</p>', unsafe_allow_html=True)
+                        if checked:
+                            selected_datasets.append(dataset)
 
     # Database
     with sub_cols[1]:
@@ -1430,19 +1469,23 @@ with columns[0]:
                         f'<div class="tooltip-container"><h3 style="color:{dataset_color};">Database - {dataset_name}</h3><span class="tooltip-text">Select specific databases from {dataset_name} dataset</span></div>',
                         unsafe_allow_html=True
                     )
-                    for db_idx, db in enumerate(dataset_dbs):
-                        col1, col2 = st.columns([0.1, 0.9])
-                        with col1:
-                            checked = st.checkbox(
-                                "",
-                                value=False,
-                                key=f"db_scroll_{dataset_idx}_{db_idx}",
-                                label_visibility="collapsed"
-                            )
-                        with col2:
-                            st.markdown(f'<div style="background-color:{dataset_bg_color}; padding:10px; border-radius:5px;">{db}</div>', unsafe_allow_html=True)
-                        if checked:
-                            selected_databases.append(db)
+                    db_scope = st.expander(f"Show databases ({len(dataset_dbs)})", expanded=False) if _first_viz_embedded else nullcontext()
+                    with db_scope:
+                        db_scroll = st.container(height=160) if _first_viz_embedded else nullcontext()
+                        with db_scroll:
+                            for db_idx, db in enumerate(dataset_dbs):
+                                col1, col2 = st.columns([0.1, 0.9])
+                                with col1:
+                                    checked = st.checkbox(
+                                        "",
+                                        value=False,
+                                        key=f"db_scroll_{dataset_idx}_{db_idx}",
+                                        label_visibility="collapsed"
+                                    )
+                                with col2:
+                                    st.markdown(f'<div style="background-color:{dataset_bg_color}; padding:10px; border-radius:5px;">{db}</div>', unsafe_allow_html=True)
+                                if checked:
+                                    selected_databases.append(db)
 
     # Third sub-column
     with sub_cols[2]:
@@ -1450,47 +1493,55 @@ with columns[0]:
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Selector Modes</h3><span class="tooltip-text">Select which selector pipelines to include in the chart</span></div>', unsafe_allow_html=True)
             selected_selectors = {}
-            for selector in selectors:
-                selector_color = get_selector_color(selector["key"])
-                selector_enabled = selector.get("enabled", True)
-                selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox(
-                        "",
-                        value=selector["default"],
-                        key=f"selector_{selector['key']}",
-                        label_visibility="collapsed",
-                        disabled=not selector_enabled
-                    )
-                with col2:
-                    st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{selector_color};">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
-                selected_selectors[selector["key"]] = checked
+            selector_scope = st.expander("Show selector modes", expanded=False) if _first_viz_embedded else nullcontext()
+            with selector_scope:
+                selector_scroll = st.container(height=170) if _first_viz_embedded else nullcontext()
+                with selector_scroll:
+                    for selector in selectors:
+                        selector_color = get_selector_color(selector["key"])
+                        selector_enabled = selector.get("enabled", True)
+                        selector_label = selector["name"] if selector_enabled else f"{selector['name']} (disabled)"
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox(
+                                "",
+                                value=selector["default"],
+                                key=f"selector_{selector['key']}",
+                                label_visibility="collapsed",
+                                disabled=not selector_enabled
+                            )
+                        with col2:
+                            st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{selector_color};">{selector_label}</p><span class="tooltip-text">{selector["tooltip"]}</span></div>', unsafe_allow_html=True)
+                        selected_selectors[selector["key"]] = checked
 
         # Single-selector model choices
         with st.container(border=True):
             st.markdown('<div class="tooltip-container"><h3>Selector Models</h3><span class="tooltip-text">Choose which models act as single-selector sources</span></div>', unsafe_allow_html=True)
             single_selector_enabled = selected_selectors.get("single_selector", False)
             selected_selector_models = []
-            for option in SELECTOR_MODEL_OPTIONS:
-                key = f"selector_model_{option['key'].replace('.', '_').replace('-', '_')}"
-                model_color = get_model_color(option["name"])
-                col1, col2 = st.columns([0.1, 0.9])
-                with col1:
-                    checked = st.checkbox(
-                        "",
-                        value=single_selector_enabled,
-                        key=key,
-                        label_visibility="collapsed",
-                        disabled=not single_selector_enabled
-                    )
-                with col2:
-                    st.markdown(
-                        f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{option["name"]}</p><span class="tooltip-text">{option["tooltip"]}</span></div>',
-                        unsafe_allow_html=True
-                    )
-                if checked:
-                    selected_selector_models.append(option["key"])
+            selector_model_scope = st.expander("Show selector models", expanded=False) if _first_viz_embedded else nullcontext()
+            with selector_model_scope:
+                selector_model_scroll = st.container(height=170) if _first_viz_embedded else nullcontext()
+                with selector_model_scroll:
+                    for option in SELECTOR_MODEL_OPTIONS:
+                        key = f"selector_model_{option['key'].replace('.', '_').replace('-', '_')}"
+                        model_color = get_model_color(option["name"])
+                        col1, col2 = st.columns([0.1, 0.9])
+                        with col1:
+                            checked = st.checkbox(
+                                "",
+                                value=single_selector_enabled,
+                                key=key,
+                                label_visibility="collapsed",
+                                disabled=not single_selector_enabled
+                            )
+                        with col2:
+                            st.markdown(
+                                f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{option["name"]}</p><span class="tooltip-text">{option["tooltip"]}</span></div>',
+                                unsafe_allow_html=True
+                            )
+                        if checked:
+                            selected_selector_models.append(option["key"])
 
     # Fourth sub-column
     with sub_cols[3]:
@@ -1505,10 +1556,7 @@ with columns[0]:
             
             # Show available query info
             if len(all_selected_queries) > 0:
-                st.caption(f"Available queries: {len(all_selected_queries)} | "
-                          f"Ranges - L:[{query_ranges['length'][0]}-{query_ranges['length'][1]}] "
-                          f"T:[{query_ranges['tables'][0]}-{query_ranges['tables'][1]}] "
-                          f"A:[{query_ranges['attributes'][0]}-{query_ranges['attributes'][1]}]")
+                pass
             else:
                 st.info("Select datasets and databases to view available queries")
 
@@ -1638,7 +1686,8 @@ with columns[0]:
                         
 
 with columns[1]:
-    st.header("Bar Plot")
+    if not _first_viz_embedded:
+        st.header("Bar Plot")
 
     # Display active results in a bar plot grouped by metric and colored by model
     if 'active_results_df' in st.session_state and not st.session_state['active_results_df'].empty:
