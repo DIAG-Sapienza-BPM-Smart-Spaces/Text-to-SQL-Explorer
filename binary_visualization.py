@@ -583,7 +583,6 @@ def main(show_title: bool = True, compact: bool = False) -> None:
 		show_sample = sample and sample_filters == {"candidate_model": selected_candidate, "judge_model": selected_judge_key}
 
 		with control_col:
-			st.caption(f"Matching rows: {len(filtered)}")
 			if show_sample:
 				render_decision_panel(sample, compact=True)
 
