@@ -1,50 +1,62 @@
-Scenario 1 — Identifying the Best Text-to-SQL Model with Ground Truth
-In questo scenario l’utente può confrontare diversi modelli Text-to-SQL utilizzando query con ground truth disponibili.
-Il sistema permette di selezionare una o più metriche di valutazione (ad esempio exact match, execution accuracy, ecc.) e restituisce un confronto tra i modelli, evidenziando il modello complessivamente migliore rispetto alla metrica scelta.
-Questo scenario consente di:
-analizzare le prestazioni comparative dei modelli,
+## Repository overview
 
-comprendere come diverse metriche influenzano la valutazione,
+In this repository there is the code to both generate and visualize the data for the Demo.
 
-identificare il miglior sistema per un determinato benchmark.
-Scenario 2 — Agent-Based Selection of Text-to-SQL Predictions
-In questo scenario la scelta della migliore query SQL non è effettuata direttamente dall’utente, ma da un agente automatico.
-Sono possibili diverse strategie di selezione, ad esempio:
-Judge-based ensemble: un agente giudice valuta le diverse query candidate e restituisce un verdetto di affidabilità (ad esempio trust / do not trust).
+Data are divided in two category: real execution data on bird_development dataset, and test_data available for generation.
 
-LLM-based reasoning: un LLM applica regole sintattiche e semantiche, tramite prompting, per selezionare la query SQL più plausibile.
+Real execution data is already pre-calculated, while test-data is not. The small data selection direclty available is due to size-issues. More real data is locally stored and is available on-demand.
 
-L’obiettivo è dimostrare come meccanismi automatici di selezione o validazione possano supportare l’utente nella scelta della query corretta.
-Scenario 3 — Investigating the Influence of Schema and Query Properties
-Questo scenario permette di analizzare come le caratteristiche dello schema e delle query influenzano le prestazioni dei modelli Text-to-SQL.
-L’utente può esplorare diversi fattori, ad esempio:
-complessità della query (facile vs difficile),
+We suggest to avoid recalculating real data, and instead genereting the test-data on-demand for the visualization.
 
-lunghezza della query naturale,
+## Setup
 
-numero di attributi o tabelle coinvolte,
+To run the code is necessary to install the libraries in the requirements.txt file.
 
-caratteristiche dello schema del database.
+langchain is actually needed only to genereate real data for the LLM-as-judges, so it may be skipped if focusing on visualization.
 
-Questo consente di studiare quando e perché alcuni modelli funzionano meglio di altri, offrendo una prospettiva più analitica sulle prestazioni.
-Scenario 4 — Bring Your Own Data and Models
-L’ultimo scenario consente agli utenti di utilizzare i propri dataset e modelli Text-to-SQL all’interno del sistema.
-Attraverso un semplice meccanismo di upload, gli utenti possono:
-caricare il proprio schema e le proprie query,
+We suggest installing the libraries in a conda virtual environment to avoid any issues.
 
-integrare modelli personalizzati,
+```bash
+conda create -n demo_paper python==3.14
+```
 
-eseguire le stesse analisi disponibili negli scenari precedenti.
 
-Questo rende la demo generalizzabile e riutilizzabile anche su casi d’uso reali.
+```bash
+pip install -r requirements.txt
 
-## Reworked Pipeline Commands
+```
 
-The reworked pipeline keeps the same goals but uses canonical metrics and precomputed artifacts.
+## Test-data Generation
 
-Input candidate SQL files are expected under candidates/ as \*\_query_results.json files.
+To generate test data for missing selectors and datasets, simply run:
 
-1. Build canonical metrics lookup for BIRD Developer true metrics:
+```bash
+python generate_test_visualization_data.py
+```
+
+There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of test data
+
+
+## Visualization command
+
+To run the visualization, simply run:
+
+```bash
+streamlit run combined_visualizion.py
+```
+
+A browser window with the visualizions should open.
+
+There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of test data.
+
+
+## Generation Data Pipeline Commands for Reproducibility
+
+This are the step needed to generate the real data artifacts for visualization, given a set of model candidates.
+
+Input models candidate SQL files are expected under candidates/ as \*\_query_results.json files.
+
+1. Build canonical metrics lookup for real data metrics:
 
 ```bash
 python precompute_metrics_lookup.py
@@ -62,20 +74,17 @@ python precompute_embeddings.py
 python precompute_similarity_matrices.py
 ```
 
-4. Generate pairwise selector judgments (raw persisted outcomes):
+4. Generate pairwise selector judgments (models and datasets must be stated in the code):
 
 ```bash
 python selector.py
 ```
 
-5. Generate fake data for non-BIRD datasets (including fake pairwise selector artifacts):
+5. Generate binary judges outputs (models and datasets must be stated in the code):
 
 ```bash
-python generate_fake_visualization_data.py
+python llm_as_judge.py
 ```
-
-
-There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of fake data
 
 ## Canonical Metrics
 
@@ -91,4 +100,4 @@ There is a Develpment flag at the start of both first_visualizion.py and binary_
 - precomputed/similarity/
 - precomputed/metrics/
 - pairwise_results/
-- fake_data/fake_selector_pairwise_results.json
+- test_data/test_selector_pairwise_results.json

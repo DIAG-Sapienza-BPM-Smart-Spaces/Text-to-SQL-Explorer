@@ -13,7 +13,7 @@ Primary execution paths:
 Supporting assets:
 
 - Streamlit visualizations for performance exploration.
-- Unified fake-data generation for missing visualization scenarios.
+- Unified test-data generation for missing visualization scenarios.
 - SQL normalization and schema retrieval utilities.
 
 ## Repository Structure
@@ -44,29 +44,29 @@ Supporting assets:
 - `binary_choices/`: True binary judge outputs.
 - `selectors/`: True selector outputs and selector-vs-ground-truth metrics.
 - `embedding_results/`: True embedding selection outputs.
-- `fake_data/`: Unified fake outputs used to fill missing scenarios.
+- `test_data/`: Unified test outputs used to fill missing scenarios.
 - `cache_results/`: On-disk cache for expensive visualization preprocessing.
 
-## Fake Data System
+## TEST Data System
 
 ### Unified Generator
 
-- `generate_fake_visualization_data.py`
+- `generate_test_visualization_data.py`
 
 Responsibilities:
 
-- Generate deterministic fake execution metrics for missing model/dataset combinations.
-- Generate deterministic fake pairwise-selector judgments for all selector models.
-- Generate deterministic fake embedding selector outputs.
-- Generate deterministic fake binary judge outputs.
+- Generate deterministic test execution metrics for missing model/dataset combinations.
+- Generate deterministic test pairwise-selector judgments for all selector models.
+- Generate deterministic test embedding selector outputs.
+- Generate deterministic test binary judge outputs.
 
 Main outputs:
 
-- `fake_data/fake_generation_bundle.json`
-- `fake_data/fake_execution_metrics.json`
-- `fake_data/fake_selector_pairwise_results.json`
-- `fake_data/fake_embedding_selection.json`
-- `fake_data/fake_binary_choices.json`
+- `test_data/test_generation_bundle.json`
+- `test_data/test_execution_metrics.json`
+- `test_data/test_selector_pairwise_results.json`
+- `test_data/test_embedding_selection.json`
+- `test_data/test_binary_choices.json`
 
 ## Visualization Data Flow
 
@@ -74,7 +74,7 @@ Main outputs:
 
 - Loads and normalizes query datasets from `datasets_files/`.
 - Computes query-level table/attribute/length features from SQL and schema.
-- Uses true metrics when available and merges fake fallback data when true data is absent.
+- Uses true metrics when available and merges test fallback data when true data is absent.
 - Supports selector overlays for:
   - Pairwise-selector judge models (winner derived from persisted pairwise outcomes).
   - Embedding selector.
@@ -82,7 +82,7 @@ Main outputs:
 ### Binary Dashboard (`binary_visualization.py`)
 
 - Reads true binary outputs from `binary_choices/`.
-- Uses `fake_data/fake_binary_choices.json` as fallback coverage.
+- Uses `test_data/test_binary_choices.json` as fallback coverage.
 - Enriches rows with query metadata when available.
 
 ## Caching Strategy
@@ -101,6 +101,6 @@ Main outputs:
 
 ## Operational Notes
 
-- True and fake artifacts are intentionally coexisting so visualizations can cover all datasets and selector/model combinations.
+- True and test artifacts are intentionally coexisting so visualizations can cover all datasets and selector/model combinations.
 - If source dataset files change, signature-based invalidation rebuilds cached query artifacts automatically.
 - If behavior looks stale in Streamlit, clear cache and rerun the app.

@@ -21,7 +21,7 @@ def _safe_set_page_config() -> None:
 
 _safe_set_page_config()
 
-# Development toggle: when True, fake binary data is ignored.
+# Development toggle: when True, test binary data is ignored.
 DEVELOPMENT_MODE = True
 
 
@@ -155,7 +155,7 @@ def load_query_indexes(project_root: str) -> Dict[str, Dict[Tuple[str, int], Dic
 def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
 	root = Path(project_root)
 	binary_dir = root / "binary_choices"
-	fake_binary_path = root / "fake_data" / "fake_binary_choices.json"
+	test_binary_path = root / "test_data" / "test_binary_choices.json"
 
 	query_indexes = load_query_indexes(project_root)
 	configured_candidates = collect_candidate_models_from_folder(project_root)
@@ -235,14 +235,14 @@ def load_binary_data(project_root: str) -> Tuple[List[Dict[str, Any]], List[str]
 				}
 				all_rows.append(enriched_row)
 
-	if (not DEVELOPMENT_MODE) and fake_binary_path.exists():
+	if (not DEVELOPMENT_MODE) and test_binary_path.exists():
 		try:
-			fake_payload = load_json(fake_binary_path)
+			test_payload = load_json(test_binary_path)
 		except Exception:
-			fake_payload = []
+			test_payload = []
 
-		if isinstance(fake_payload, list):
-			for row in fake_payload:
+		if isinstance(test_payload, list):
+			for row in test_payload:
 				if not isinstance(row, dict):
 					continue
 

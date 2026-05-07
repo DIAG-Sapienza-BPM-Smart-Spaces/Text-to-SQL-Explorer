@@ -1,0 +1,5 @@
+streamlit
+numpy
+langchain
+sentence_transformers
+sqlglot

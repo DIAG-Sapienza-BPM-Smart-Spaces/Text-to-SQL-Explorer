@@ -22,7 +22,7 @@ from embedding import (
     load_similarity_matrix_artifact,
 )
 
-# Development toggle: when True, all fake-data sources are ignored.
+# Development toggle: when True, all test-data sources are ignored.
 DEVELOPMENT_MODE = True
 
 def _collect_models_from_candidates(candidates_dir='candidates'):
@@ -63,7 +63,7 @@ SYSTEM_ID_TO_MODEL = {v: k for k, v in MODEL_TO_SYSTEM_ID.items()}
 PAIRWISE_METRICS = list(CANONICAL_METRICS)
 
 EMBEDDING_SELECTOR_SOURCE_LABEL = "Embedding selector"
-FAKE_DATA_DIR = 'fake_data'
+TEST_DATA_DIR = 'test_data'
 CACHE_DIR = 'cache_results'
 CACHE_SCHEMA_VERSION = '2026-03-22-v1'
 
@@ -589,13 +589,13 @@ def load_model_results():
                     'value': metric_value,
                 })
 
-        fake_execution_path = os.path.join(FAKE_DATA_DIR, 'fake_execution_metrics.json')
-        if (not DEVELOPMENT_MODE) and os.path.exists(fake_execution_path):
-            with open(fake_execution_path, 'r', encoding='utf-8') as f:
-                fake_rows = json.load(f)
+        test_execution_path = os.path.join(TEST_DATA_DIR, 'test_execution_metrics.json')
+        if (not DEVELOPMENT_MODE) and os.path.exists(test_execution_path):
+            with open(test_execution_path, 'r', encoding='utf-8') as f:
+                test_rows = json.load(f)
 
-            if isinstance(fake_rows, list):
-                for row in fake_rows:
+            if isinstance(test_rows, list):
+                for row in test_rows:
                     if not isinstance(row, dict):
                         continue
 
@@ -641,7 +641,7 @@ def load_model_results():
 
 @st.cache_data
 def load_selector_ground_truth_results():
-    """Load selector-derived metrics from pairwise outcomes plus fake fallback."""
+    """Load selector-derived metrics from pairwise outcomes plus test fallback."""
     rows = []
     seen = set()
     bird_lookup = load_bird_metrics_lookup()
@@ -686,13 +686,13 @@ def load_selector_ground_truth_results():
                         'value': metric_value,
                     })
 
-    fake_pairwise_selector_path = os.path.join(FAKE_DATA_DIR, 'fake_selector_pairwise_results.json')
-    if (not DEVELOPMENT_MODE) and os.path.exists(fake_pairwise_selector_path):
-        with open(fake_pairwise_selector_path, 'r', encoding='utf-8') as f:
-            fake_pairwise_payload = json.load(f)
+    test_pairwise_selector_path = os.path.join(TEST_DATA_DIR, 'test_selector_pairwise_results.json')
+    if (not DEVELOPMENT_MODE) and os.path.exists(test_pairwise_selector_path):
+        with open(test_pairwise_selector_path, 'r', encoding='utf-8') as f:
+            test_pairwise_payload = json.load(f)
 
-        if isinstance(fake_pairwise_payload, list):
-            for row in fake_pairwise_payload:
+        if isinstance(test_pairwise_payload, list):
+            for row in test_pairwise_payload:
                 if not isinstance(row, dict):
                     continue
 
@@ -795,13 +795,13 @@ def load_embedding_selector_results():
                         'value': metric_pct,
                     })
 
-    fake_embedding_path = os.path.join(FAKE_DATA_DIR, 'fake_embedding_selection.json')
-    if (not DEVELOPMENT_MODE) and os.path.exists(fake_embedding_path):
-        with open(fake_embedding_path, 'r', encoding='utf-8') as f:
-            fake_payload = json.load(f)
+    test_embedding_path = os.path.join(TEST_DATA_DIR, 'test_embedding_selection.json')
+    if (not DEVELOPMENT_MODE) and os.path.exists(test_embedding_path):
+        with open(test_embedding_path, 'r', encoding='utf-8') as f:
+            test_payload = json.load(f)
 
-        if isinstance(fake_payload, list):
-            for row in fake_payload:
+        if isinstance(test_payload, list):
+            for row in test_payload:
                 if not isinstance(row, dict):
                     continue
 

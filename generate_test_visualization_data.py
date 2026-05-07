@@ -22,7 +22,7 @@ from embedding import (
 ROOT = Path(__file__).resolve().parent
 _CHECKPOINT_LOCK = threading.Lock()
 
-# Canonical metric keys used by visualization and fake generators.
+# Canonical metric keys used by visualization and test generators.
 METRICS = [
     "execution_accuracy",
     "exact_match",
@@ -56,9 +56,9 @@ DATASET_SOURCES = [
 ]
 
 # True data is only available for BIRD Developer in current visualization pipeline.
-FAKE_EXECUTION_EXCLUDED_DATASETS = {"BIRD Developer"}
-FAKE_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
-FAKE_PAIRWISE_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
+TEST_EXECUTION_EXCLUDED_DATASETS = {"BIRD Developer"}
+TEST_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
+TEST_PAIRWISE_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
 
 
 @dataclass
@@ -163,7 +163,7 @@ def sql_feature_score(sql_text: str) -> float:
     return clamp01(normalized)
 
 
-def compute_fake_metrics(dataset: str, model: str, query: QueryRow) -> Dict[str, float]:
+def compute_test_metrics(dataset: str, model: str, query: QueryRow) -> Dict[str, float]:
     # Base quality prior per model, then adjust by split and query difficulty.
     model_base = {
         "deepseek-chat": 0.74,
@@ -201,14 +201,14 @@ def compute_fake_metrics(dataset: str, model: str, query: QueryRow) -> Dict[str,
     return metrics
 
 
-def generate_fake_execution_data(queries: List[QueryRow]) -> List[dict]:
+def generate_test_execution_data(queries: List[QueryRow]) -> List[dict]:
     # Generate per-model metric rows for non-BIRD-Developer datasets.
     out: List[dict] = []
     for q in queries:
-        if q.dataset in FAKE_EXECUTION_EXCLUDED_DATASETS:
+        if q.dataset in TEST_EXECUTION_EXCLUDED_DATASETS:
             continue
         for model in CANDIDATE_MODELS:
-            metrics = compute_fake_metrics(q.dataset, model, q)
+            metrics = compute_test_metrics(q.dataset, model, q)
             out.append(
                 {
                     "dataset": q.dataset,
@@ -225,7 +225,7 @@ def pick_model_for_selector(selector_model: str, dataset: str, query: QueryRow) 
     # Pick top candidate by synthetic quality + deterministic selector/query noise.
     scored = []
     for candidate in CANDIDATE_MODELS:
-        metrics = compute_fake_metrics(dataset, candidate, query)
+        metrics = compute_test_metrics(dataset, candidate, query)
         quality = mean(metrics.values())
 
         # Mild selector-specific preferences to avoid identical selector outputs.
@@ -239,17 +239,17 @@ def pick_model_for_selector(selector_model: str, dataset: str, query: QueryRow) 
     return scored[0][1]
 
 
-def generate_fake_selector_data(queries: List[QueryRow]) -> List[dict]:
+def generate_test_selector_data(queries: List[QueryRow]) -> List[dict]:
     # Produce one selected model per (selector_model, query).
     rows: List[dict] = []
 
     for selector_model in SELECTOR_MODELS:
         for q in queries:
-            if selector_model == "deepseek-chat" and q.dataset in FAKE_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS:
+            if selector_model == "deepseek-chat" and q.dataset in TEST_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS:
                 continue
 
             selected = pick_model_for_selector(selector_model, q.dataset, q)
-            selected_metrics = compute_fake_metrics(q.dataset, selected, q)
+            selected_metrics = compute_test_metrics(q.dataset, selected, q)
 
             rows.append(
                 {
@@ -265,13 +265,13 @@ def generate_fake_selector_data(queries: List[QueryRow]) -> List[dict]:
     return rows
 
 
-def generate_fake_embedding_data(queries: List[QueryRow]) -> List[dict]:
+def generate_test_embedding_data(queries: List[QueryRow]) -> List[dict]:
     # Simulate embedding selector outputs with selection metadata payload.
     rows: List[dict] = []
 
     for q in queries:
         selected = pick_model_for_selector("embedding-selector", q.dataset, q)
-        metrics = compute_fake_metrics(q.dataset, selected, q)
+        metrics = compute_test_metrics(q.dataset, selected, q)
 
         rows.append(
             {
@@ -299,14 +299,14 @@ def generate_fake_embedding_data(queries: List[QueryRow]) -> List[dict]:
     return rows
 
 
-def _build_fake_similarity_matrix(dataset: str, query: QueryRow, models: List[str]) -> np.ndarray:
+def _build_test_similarity_matrix(dataset: str, query: QueryRow, models: List[str]) -> np.ndarray:
     """Build a deterministic symmetric similarity matrix for one query."""
     n = len(models)
     matrix = np.eye(n, dtype=np.float32)
 
     # Reuse synthetic metric quality as a signal that drives pairwise similarity.
     quality_by_model = {
-        m: mean(compute_fake_metrics(dataset, m, query).values())
+        m: mean(compute_test_metrics(dataset, m, query).values())
         for m in models
     }
 
@@ -321,7 +321,7 @@ def _build_fake_similarity_matrix(dataset: str, query: QueryRow, models: List[st
             jitter = stable_between(
                 -0.08,
                 0.08,
-                "fake_similarity",
+                "test_similarity",
                 dataset,
                 query.db_id,
                 query.question_id,
@@ -335,19 +335,19 @@ def _build_fake_similarity_matrix(dataset: str, query: QueryRow, models: List[st
     return matrix
 
 
-def generate_fake_similarity_assets(
+def generate_test_similarity_assets(
     queries: List[QueryRow],
     output_root: Path,
     max_workers: Optional[int] = None,
     checkpoint_every: int = 100,
     verbose: int = 1,
 ) -> dict:
-    """Generate fake per-query similarity matrices and a true-schema index."""
+    """Generate test per-query similarity matrices and a true-schema index."""
     similarity_dir = output_root / "embedding" / "similarity"
     similarity_dir.mkdir(parents=True, exist_ok=True)
 
     ordered_models = sorted(CANDIDATE_MODELS)
-    index_payload: Dict[str, object] = {"dataset": "all_fake", "queries": {}}
+    index_payload: Dict[str, object] = {"dataset": "all_test", "queries": {}}
     queries_index: Dict[str, dict] = index_payload["queries"]  # type: ignore[assignment]
 
     workers = max(1, int(max_workers or min(8, (os.cpu_count() or 4))))
@@ -355,14 +355,14 @@ def generate_fake_similarity_assets(
     log_message(
         verbose,
         1,
-        f"[fake-similarity] Starting generation for {len(queries)} queries with workers={workers}, checkpoint_every={checkpoint_stride}",
+        f"[test-similarity] Starting generation for {len(queries)} queries with workers={workers}, checkpoint_every={checkpoint_stride}",
     )
 
     def _build_one(q: QueryRow) -> tuple[str, dict]:
         dataset_token = _dataset_to_similarity_token(q.dataset)
         query_key = f"{dataset_token}|{q.db_id}|{q.question_id}"
 
-        matrix = _build_fake_similarity_matrix(q.dataset, q, ordered_models)
+        matrix = _build_test_similarity_matrix(q.dataset, q, ordered_models)
         avg, std = compute_average_and_std_of_similarities(matrix)
 
         matrix_file = similarity_dir / f"similarity_{dataset_token}_{slugify(q.db_id)}_{q.question_id}.npz"
@@ -373,7 +373,7 @@ def generate_fake_similarity_assets(
             "db_id": q.db_id,
             "question_id": int(q.question_id),
             "models": ordered_models,
-            # Fake sql ids are positional placeholders; visualization only needs alignment with `models`.
+            # test sql ids are positional placeholders; visualization only needs alignment with `models`.
             "sql_ids": list(range(len(ordered_models))),
             "matrix_file": str(matrix_file.relative_to(ROOT)),
             "similarity_mean": float(avg),
@@ -391,19 +391,19 @@ def generate_fake_similarity_assets(
             generated += 1
 
             if verbose >= 2 and (generated % 50 == 0 or generated == len(queries)):
-                log_message(verbose, 2, f"[fake-similarity] Completed {generated}/{len(queries)} matrices")
+                log_message(verbose, 2, f"[test-similarity] Completed {generated}/{len(queries)} matrices")
 
             if generated % checkpoint_stride == 0:
                 # Checkpoint index so interruptions don't lose all progress.
                 with _CHECKPOINT_LOCK:
                     save_json_artifact(similarity_dir / "similarity_index.json", index_payload)
                     save_json_artifact(similarity_dir / "bird_dev_similarity_index.json", index_payload)
-                log_message(verbose, 1, f"[fake-similarity] Checkpoint saved at {generated} matrices")
+                log_message(verbose, 1, f"[test-similarity] Checkpoint saved at {generated} matrices")
 
     # Provide both generic and bird_dev index file names for compatibility with loaders.
     save_json_artifact(similarity_dir / "similarity_index.json", index_payload)
     save_json_artifact(similarity_dir / "bird_dev_similarity_index.json", index_payload)
-    log_message(verbose, 1, f"[fake-similarity] Final index saved with {generated} entries")
+    log_message(verbose, 1, f"[test-similarity] Final index saved with {generated} entries")
 
     return {
         "num_similarity_matrices": generated,
@@ -421,19 +421,19 @@ def _pairwise_winner(metrics_a: Dict[str, float], metrics_b: Dict[str, float], t
     return "model_a" if score_a > score_b else "model_b"
 
 
-def generate_fake_selector_pairwise_data(queries: List[QueryRow]) -> List[dict]:
+def generate_test_selector_pairwise_data(queries: List[QueryRow]) -> List[dict]:
     # Build all unique model-vs-model judgments for each (judge_model, query).
     rows: List[dict] = []
 
     for judge_model in JUDGE_MODELS:
         for q in queries:
-            if q.dataset in FAKE_PAIRWISE_SELECTOR_EXCLUDED_DATASETS:
+            if q.dataset in TEST_PAIRWISE_SELECTOR_EXCLUDED_DATASETS:
                 continue
 
             pairwise_rows = []
             for model_a, model_b in combinations(CANDIDATE_MODELS, 2):
-                metrics_a = compute_fake_metrics(q.dataset, model_a, q)
-                metrics_b = compute_fake_metrics(q.dataset, model_b, q)
+                metrics_a = compute_test_metrics(q.dataset, model_a, q)
+                metrics_b = compute_test_metrics(q.dataset, model_b, q)
                 winner_token = _pairwise_winner(
                     metrics_a,
                     metrics_b,
@@ -471,17 +471,17 @@ def generate_fake_selector_pairwise_data(queries: List[QueryRow]) -> List[dict]:
     return rows
 
 
-def generate_fake_binary_data(queries: List[QueryRow]) -> List[dict]:
+def generate_test_binary_data(queries: List[QueryRow]) -> List[dict]:
     # Generate ACCEPT/REJECT style rows to mirror binary judge output format.
     rows: List[dict] = []
 
     for judge_model in JUDGE_MODELS:
         for candidate_model in CANDIDATE_MODELS:
             for q in queries:
-                if q.dataset in FAKE_EXECUTION_EXCLUDED_DATASETS:
+                if q.dataset in TEST_EXECUTION_EXCLUDED_DATASETS:
                     continue
 
-                metrics = compute_fake_metrics(q.dataset, candidate_model, q)
+                metrics = compute_test_metrics(q.dataset, candidate_model, q)
                 accept_score = 0.60 * metrics["execution_accuracy"] + 0.40 * metrics["sql_f1_score"]
                 threshold = stable_between(0.45, 0.72, "binary_threshold", judge_model, q.dataset, q.db_id, q.question_id)
                 choice = "ACCEPT" if accept_score >= threshold else "REJECT"
@@ -521,59 +521,59 @@ def write_outputs(
 
     bundle = {
         "meta": {
-            "description": "Deterministic fake data for missing visualization scenarios.",
+            "description": "Deterministic test data for missing visualization scenarios.",
             "notes": [
-                "Execution fake data excludes BIRD Developer because true data already exists.",
-                "DeepSeek single-selector fake data excludes BIRD Developer for the same reason.",
-                "Embedding fake data covers all datasets.",
+                "Execution test data excludes BIRD Developer because true data already exists.",
+                "DeepSeek single-selector test data excludes BIRD Developer for the same reason.",
+                "Embedding test data covers all datasets.",
             ],
         },
-        "execution_fake": execution_rows,
-        "selector_fake": selector_rows,
-        "selector_pairwise_fake": selector_pairwise_rows,
-        "embedding_fake": embedding_rows,
-        "binary_fake": binary_rows,
-        "similarity_fake": similarity_summary,
+        "execution_test": execution_rows,
+        "selector_test": selector_rows,
+        "selector_pairwise_test": selector_pairwise_rows,
+        "embedding_test": embedding_rows,
+        "binary_test": binary_rows,
+        "similarity_test": similarity_summary,
     }
 
-    dump_json(output_root / "fake_generation_bundle.json", bundle)
-    dump_json(output_root / "fake_execution_metrics.json", execution_rows)
-    dump_json(output_root / "fake_selector_pairwise_results.json", selector_pairwise_rows)
-    dump_json(output_root / "fake_embedding_selection.json", embedding_rows)
-    dump_json(output_root / "fake_binary_choices.json", binary_rows)
-    log_message(verbose, 1, f"[fake-data] Wrote bundle + base fake files to {output_root}")
+    dump_json(output_root / "test_generation_bundle.json", bundle)
+    dump_json(output_root / "test_execution_metrics.json", execution_rows)
+    dump_json(output_root / "test_selector_pairwise_results.json", selector_pairwise_rows)
+    dump_json(output_root / "test_embedding_selection.json", embedding_rows)
+    dump_json(output_root / "test_binary_choices.json", binary_rows)
+    log_message(verbose, 1, f"[test-data] Wrote bundle + base test files to {output_root}")
 
     for dataset in {r["dataset"] for r in embedding_rows}:
         ds_rows = [r for r in embedding_rows if r["dataset"] == dataset]
-        dump_json(output_root / "embedding" / f"embedding_selector_{slugify(dataset)}_fake.json", ds_rows)
+        dump_json(output_root / "embedding" / f"embedding_selector_{slugify(dataset)}_test.json", ds_rows)
 
-    log_message(verbose, 1, f"[fake-data] Wrote {len({r['dataset'] for r in embedding_rows})} dataset embedding selector files")
+    log_message(verbose, 1, f"[test-data] Wrote {len({r['dataset'] for r in embedding_rows})} dataset embedding selector files")
 
 
-def generate_all_fake_data(
-    output_dir: str = "fake_data",
+def generate_all_test_data(
+    output_dir: str = "test_data",
     max_workers: Optional[int] = None,
     checkpoint_every: int = 100,
     verbose: int = 1,
 ) -> dict:
     # End-to-end orchestration: load queries, synthesize payloads, persist outputs.
-    log_message(verbose, 1, "[fake-data] Loading input queries...")
+    log_message(verbose, 1, "[test-data] Loading input queries...")
     queries = load_all_queries()
-    log_message(verbose, 1, f"[fake-data] Loaded {len(queries)} queries")
+    log_message(verbose, 1, f"[test-data] Loaded {len(queries)} queries")
 
-    log_message(verbose, 1, "[fake-data] Generating execution fake rows...")
-    execution_rows = generate_fake_execution_data(queries)
-    log_message(verbose, 1, "[fake-data] Generating selector fake rows...")
-    selector_rows = generate_fake_selector_data(queries)
-    log_message(verbose, 1, "[fake-data] Generating selector pairwise fake rows...")
-    selector_pairwise_rows = generate_fake_selector_pairwise_data(queries)
-    log_message(verbose, 1, "[fake-data] Generating embedding fake rows...")
-    embedding_rows = generate_fake_embedding_data(queries)
-    log_message(verbose, 1, "[fake-data] Generating binary fake rows...")
-    binary_rows = generate_fake_binary_data(queries)
+    log_message(verbose, 1, "[test-data] Generating execution test rows...")
+    execution_rows = generate_test_execution_data(queries)
+    log_message(verbose, 1, "[test-data] Generating selector test rows...")
+    selector_rows = generate_test_selector_data(queries)
+    log_message(verbose, 1, "[test-data] Generating selector pairwise test rows...")
+    selector_pairwise_rows = generate_test_selector_pairwise_data(queries)
+    log_message(verbose, 1, "[test-data] Generating embedding test rows...")
+    embedding_rows = generate_test_embedding_data(queries)
+    log_message(verbose, 1, "[test-data] Generating binary test rows...")
+    binary_rows = generate_test_binary_data(queries)
 
     output_root = ROOT / output_dir
-    similarity_summary = generate_fake_similarity_assets(
+    similarity_summary = generate_test_similarity_assets(
         queries,
         output_root,
         max_workers=max_workers,
@@ -595,7 +595,7 @@ def generate_all_fake_data(
         verbose,
         1,
         (
-            "[fake-data] Generation complete "
+            "[test-data] Generation complete "
             f"(execution={len(execution_rows)}, selector={len(selector_rows)}, "
             f"selector_pairwise={len(selector_pairwise_rows)}, embedding={len(embedding_rows)}, "
             f"binary={len(binary_rows)}, similarity={int(similarity_summary.get('num_similarity_matrices', 0))})"
@@ -616,20 +616,20 @@ def generate_all_fake_data(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate deterministic fake visualization data artifacts.")
-    parser.add_argument("--output-dir", default="fake_data", help="Output directory for generated fake artifacts")
-    parser.add_argument("--max-workers", type=int, default=max(1, min(8, (os.cpu_count() or 4))), help="Worker threads for fake similarity matrix generation")
+    parser = argparse.ArgumentParser(description="Generate deterministic test visualization data artifacts.")
+    parser.add_argument("--output-dir", default="test_data", help="Output directory for generated test artifacts")
+    parser.add_argument("--max-workers", type=int, default=max(1, min(8, (os.cpu_count() or 4))), help="Worker threads for test similarity matrix generation")
     parser.add_argument("--checkpoint-every", type=int, default=100, help="Save similarity index checkpoint every N completed matrices")
     parser.add_argument("--verbose", type=int, default=1, help="Verbosity level")
     args = parser.parse_args()
 
-    summary = generate_all_fake_data(
+    summary = generate_all_test_data(
         output_dir=args.output_dir,
         max_workers=args.max_workers,
         checkpoint_every=args.checkpoint_every,
         verbose=args.verbose,
     )
-    print("Fake data generation complete:")
+    print("Test data generation complete:")
     print(json.dumps(summary, indent=2))
 
 
