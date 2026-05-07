@@ -1,5 +1,8 @@
 streamlit
 numpy
 langchain
+langchain_deepseek
 sentence_transformers
 sqlglot
+plotly
+pandas

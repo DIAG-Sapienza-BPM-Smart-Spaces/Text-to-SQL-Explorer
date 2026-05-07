@@ -58,7 +58,7 @@ DATASET_SOURCES = [
 # True data is only available for BIRD Developer in current visualization pipeline.
 TEST_EXECUTION_EXCLUDED_DATASETS = {"BIRD Developer"}
 TEST_DEEPSEEK_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
-TEST_PAIRWISE_SELECTOR_EXCLUDED_DATASETS = {"BIRD Developer"}
+TEST_PAIRWISE_SELECTOR_EXCLUDED_DATASETS = set()  # Generate test pairwise data for all datasets including BIRD Developer
 
 
 @dataclass

@@ -1,19 +1,57 @@
 from __future__ import annotations
 
 from pathlib import Path
+import ctypes
 import json
+import os
 import threading
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 import sqlglot
 from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
 
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
+
 EMBEDDER_ID = "s2593817/sft-sql-embedding"
 CACHE_DIR = Path(__file__).resolve().parent / ".hf_cache"
-_EMBEDDER: Optional[SentenceTransformer] = None
+_EMBEDDER: Optional[Any] = None
 _EMBEDDER_LOCK = threading.Lock()
+
+
+def _preload_openmp_runtime(verbose: int = 0) -> None:
+    """Preload libgomp to avoid static TLS allocation errors on some systems."""
+    candidates = []
+
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    if conda_prefix:
+        candidates.append(Path(conda_prefix) / "lib" / "libgomp.so.1")
+
+    candidates.extend(
+        [
+            Path("/usr/lib/x86_64-linux-gnu/libgomp.so.1"),
+            Path("/usr/lib/aarch64-linux-gnu/libgomp.so.1"),
+            Path("/lib/x86_64-linux-gnu/libgomp.so.1"),
+            Path("/lib/aarch64-linux-gnu/libgomp.so.1"),
+        ]
+    )
+
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                ctypes.CDLL(str(candidate), mode=ctypes.RTLD_GLOBAL)
+                log_message(verbose, 2, f"[DEBUG] Preloaded OpenMP runtime: {candidate}")
+                return
+        except OSError as e:
+            log_message(verbose, 2, f"[DEBUG] Failed to preload {candidate}: {e}")
+
+    # Fallback: rely on dynamic loader search path.
+    try:
+        ctypes.CDLL("libgomp.so.1", mode=ctypes.RTLD_GLOBAL)
+        log_message(verbose, 2, "[DEBUG] Preloaded OpenMP runtime via linker path")
+    except OSError as e:
+        log_message(verbose, 2, f"[DEBUG] Could not preload libgomp.so.1: {e}")
 
 
 def log_message(verbose: int, level: int, message: str) -> None:
@@ -22,7 +60,7 @@ def log_message(verbose: int, level: int, message: str) -> None:
         print(message)
 
 
-def load_embedder(embedder_id: str = EMBEDDER_ID, verbose: int = 1) -> SentenceTransformer:
+def load_embedder(embedder_id: str = EMBEDDER_ID, verbose: int = 1) -> "SentenceTransformer":
     """Load the embedder once and reuse it from memory."""
     global _EMBEDDER
 
@@ -31,6 +69,9 @@ def load_embedder(embedder_id: str = EMBEDDER_ID, verbose: int = 1) -> SentenceT
     if _EMBEDDER is None:
         with _EMBEDDER_LOCK:
             if _EMBEDDER is None:
+                _preload_openmp_runtime(verbose=verbose)
+                from sentence_transformers import SentenceTransformer
+
                 log_message(verbose, 1, f"[INFO] Loading embedder: {embedder_id}")
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 _EMBEDDER = SentenceTransformer(embedder_id, cache_folder=str(CACHE_DIR))

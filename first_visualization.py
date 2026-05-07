@@ -23,7 +23,7 @@ from embedding import (
 )
 
 # Development toggle: when True, all test-data sources are ignored.
-DEVELOPMENT_MODE = True
+DEVELOPMENT_MODE = False
 
 def _collect_models_from_candidates(candidates_dir='candidates'):
     """Collect candidate model ids from candidates folder file names."""
@@ -473,11 +473,32 @@ def load_precomputed_embedding_assets():
     ]
 
     index_path = next((p for p in candidate_index_paths if os.path.exists(p)), None)
+    if not index_path:
+        return {}
     try:
         index_payload = load_json_artifact(index_path)
         return index_payload
     except Exception:
-        return {}, None
+        return {}
+
+
+def _iter_selector_payload_paths():
+    """Yield selector payload file paths from supported directories."""
+    candidates = []
+
+    pairwise_dir = 'pairwise_results'
+    if os.path.exists(pairwise_dir):
+        for filename in os.listdir(pairwise_dir):
+            if filename.endswith('_pairwise_selector_results.json'):
+                candidates.append(os.path.join(pairwise_dir, filename))
+
+    selectors_dir = 'selectors'
+    if os.path.exists(selectors_dir):
+        for filename in os.listdir(selectors_dir):
+            if filename.endswith('_single_selector_choices.json'):
+                candidates.append(os.path.join(selectors_dir, filename))
+
+    return candidates
 
 
 def _dataset_to_similarity_token(dataset_name):
@@ -646,45 +667,43 @@ def load_selector_ground_truth_results():
     seen = set()
     bird_lookup = load_bird_metrics_lookup()
 
-    pairwise_dir = 'pairwise_results'
-    if os.path.exists(pairwise_dir):
-        for filename in os.listdir(pairwise_dir):
-            if not filename.endswith('_pairwise_selector_results.json'):
-                continue
-            path = os.path.join(pairwise_dir, filename)
+    for path in _iter_selector_payload_paths():
+        try:
             with open(path, 'r', encoding='utf-8') as f:
                 payload = json.load(f)
+        except Exception:
+            continue
 
-            selector_model = payload.get('selector_model', 'deepseek-chat')
-            source_label = selector_source_label(selector_model)
+        selector_model = payload.get('selector_model', 'deepseek-chat')
+        source_label = selector_source_label(selector_model)
 
-            for row in payload.get('results', []):
-                if not isinstance(row, dict):
+        for row in payload.get('results', []):
+            if not isinstance(row, dict):
+                continue
+            query_id = row.get('question_id')
+            database = row.get('db_id')
+            selected_model = _pick_selected_model_from_leaderboard(row, selector_model, 'BIRD Developer')
+            if not selected_model:
+                continue
+
+            metric_block = bird_lookup.get((str(database), int(query_id), selected_model), {})
+            for metric_key in PAIRWISE_METRICS:
+                metric_value = metric_block.get(metric_key)
+                if not isinstance(metric_value, (int, float)):
                     continue
-                query_id = row.get('question_id')
-                database = row.get('db_id')
-                selected_model = _pick_selected_model_from_leaderboard(row, selector_model, 'BIRD Developer')
-                if not selected_model:
+                dedup_key = ('BIRD Developer', query_id, database, source_label, metric_key)
+                if dedup_key in seen:
                     continue
+                seen.add(dedup_key)
 
-                metric_block = bird_lookup.get((str(database), int(query_id), selected_model), {})
-                for metric_key in PAIRWISE_METRICS:
-                    metric_value = metric_block.get(metric_key)
-                    if not isinstance(metric_value, (int, float)):
-                        continue
-                    dedup_key = ('BIRD Developer', query_id, database, source_label, metric_key)
-                    if dedup_key in seen:
-                        continue
-                    seen.add(dedup_key)
-
-                    rows.append({
-                        'dataset': 'BIRD Developer',
-                        'database': database,
-                        'id': query_id,
-                        'model': source_label,
-                        'metric': metric_key,
-                        'value': metric_value,
-                    })
+                rows.append({
+                    'dataset': 'BIRD Developer',
+                    'database': database,
+                    'id': query_id,
+                    'model': source_label,
+                    'metric': metric_key,
+                    'value': metric_value,
+                })
 
     test_pairwise_selector_path = os.path.join(TEST_DATA_DIR, 'test_selector_pairwise_results.json')
     if (not DEVELOPMENT_MODE) and os.path.exists(test_pairwise_selector_path):
@@ -982,16 +1001,13 @@ def compute_realtime_pairwise_selector_rows(active_queries, selected_models, sel
 
     rows = []
     seen = set()
-    pairwise_dir = 'pairwise_results'
-    if not os.path.exists(pairwise_dir):
+
+    selector_payload_paths = _iter_selector_payload_paths()
+    if not selector_payload_paths:
         return rows
 
     selected_selector_set = set(selected_selector_models)
-    for filename in os.listdir(pairwise_dir):
-        if not filename.endswith('_pairwise_selector_results.json'):
-            continue
-
-        path = os.path.join(pairwise_dir, filename)
+    for path in selector_payload_paths:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 payload = json.load(f)
@@ -1090,29 +1106,51 @@ def collect_active_results(active_queries, selected_models, selected_metrics_dic
     if selected_selector_models is None:
         selected_selector_models = []
 
-    selector_rows = []
+    selector_frames = []
     selector_enabled = selected_selectors_dict.get('single_selector', False)
     embedding_selector_enabled = selected_selectors_dict.get('embedding_selector', False)
 
+    if selector_enabled and selected_metric_keys and selected_selector_models and not all_selector_results.empty:
+        selector_model_labels = [selector_source_label(model_id) for model_id in selected_selector_models]
+        selector_df = all_selector_results[
+            all_selector_results['g_id'].isin(active_g_ids) &
+            all_selector_results['model'].isin(selector_model_labels) &
+            all_selector_results['metric'].isin(selected_metric_keys)
+        ].copy()
+        if not selector_df.empty:
+            selector_frames.append(selector_df)
+
     if selector_enabled and selected_metric_keys and selected_selector_models:
-        selector_rows = compute_realtime_pairwise_selector_rows(
+        realtime_pairwise_rows = compute_realtime_pairwise_selector_rows(
             active_queries=active_queries,
             selected_models=selected_models,
             selected_metric_keys=selected_metric_keys,
             selected_selector_models=selected_selector_models,
         )
+        if realtime_pairwise_rows:
+            selector_frames.append(pd.DataFrame(realtime_pairwise_rows))
 
     if embedding_selector_enabled and selected_metric_keys:
         realtime_rows = compute_realtime_embedding_selector_rows(active_queries, selected_models, selected_metric_keys)
         if realtime_rows:
-            selector_rows.extend(realtime_rows)
+            selector_frames.append(pd.DataFrame(realtime_rows))
 
-    if selector_rows:
-        selector_df = pd.DataFrame(selector_rows)
+        if not all_embedding_selector_results.empty:
+            embedding_df = all_embedding_selector_results[
+                all_embedding_selector_results['g_id'].isin(active_g_ids) &
+                all_embedding_selector_results['metric'].isin(selected_metric_keys)
+            ].copy()
+            if not embedding_df.empty:
+                selector_frames.append(embedding_df)
+
+    if selector_frames:
+        selector_df = pd.concat(selector_frames, ignore_index=True)
+        selector_df = selector_df.drop_duplicates(subset=['dataset', 'database', 'id', 'model', 'metric'])
         if active_results.empty:
             active_results = selector_df
         else:
             active_results = pd.concat([active_results, selector_df], ignore_index=True)
+            active_results = active_results.drop_duplicates(subset=['dataset', 'database', 'id', 'model', 'metric'])
 
     return active_results
 
@@ -1410,7 +1448,12 @@ with columns[0]:
                         model_color = get_model_color(model)
                         col1, col2 = st.columns([0.1, 0.9])
                         with col1:
-                            checked = st.checkbox("", value=False, key=f"model_{i}", label_visibility="collapsed")
+                            checked = st.checkbox(
+                                f"Select model {model}",
+                                value=False,
+                                key=f"model_{i}",
+                                label_visibility="collapsed",
+                            )
                         with col2:
                             st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{model_color};">{model}</p><span class="tooltip-text">Include {model} as a candidate-model series.</span></div>', unsafe_allow_html=True)
                         if checked:
@@ -1428,7 +1471,12 @@ with columns[0]:
                         metric_color = get_metric_color(metric["key"])
                         col1, col2 = st.columns([0.1, 0.9])
                         with col1:
-                            checked = st.checkbox("", value=metric["default"], key=f"metric_{metric['key']}", label_visibility="collapsed")
+                            checked = st.checkbox(
+                                f"Select metric {metric['name']}",
+                                value=metric["default"],
+                                key=f"metric_{metric['key']}",
+                                label_visibility="collapsed",
+                            )
                         with col2:
                             st.markdown(f'<div class="tooltip-container"><p class="text-item" style="color:{metric_color};">{metric["name"]}</p><span class="tooltip-text">{metric["tooltip"]}</span></div>', unsafe_allow_html=True)
                         selected_metrics[metric["key"]] = checked
@@ -1447,7 +1495,13 @@ with columns[0]:
                         dataset_label = dataset if dataset_enabled else f"{dataset} (disabled)"
                         col1, col2 = st.columns([0.1, 0.9])
                         with col1:
-                            checked = st.checkbox("", value=False, key=f"dataset_{i}", label_visibility="collapsed", disabled=not dataset_enabled)
+                            checked = st.checkbox(
+                                f"Select dataset {dataset}",
+                                value=False,
+                                key=f"dataset_{i}",
+                                label_visibility="collapsed",
+                                disabled=not dataset_enabled,
+                            )
                         with col2:
                             st.markdown(f'<p class="text-item" style="color:{dataset_color};">{dataset_label}</p>', unsafe_allow_html=True)
                         if checked:

@@ -1,4 +1,4 @@
 sqls
 .hf_cache
-fake_data
-pairwise_results/
+test_data
+cache_results

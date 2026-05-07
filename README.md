@@ -26,6 +26,10 @@ pip install -r requirements.txt
 
 ```
 
+```bash
+conda install -n demo -c conda-forge scikit-learn
+```
+
 ## Test-data Generation
 
 To generate test data for missing selectors and datasets, simply run:
@@ -34,25 +38,16 @@ To generate test data for missing selectors and datasets, simply run:
 python generate_test_visualization_data.py
 ```
 
+**The generation process may be take a while given the size of the output data**
+
 There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of test data
-
-
-## Visualization command
-
-To run the visualization, simply run:
-
-```bash
-streamlit run combined_visualizion.py
-```
-
-A browser window with the visualizions should open.
-
-There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of test data.
 
 
 ## Generation Data Pipeline Commands for Reproducibility
 
 This are the step needed to generate the real data artifacts for visualization, given a set of model candidates.
+
+**The generation process may be take a while given the size of the input data**
 
 Input models candidate SQL files are expected under candidates/ as \*\_query_results.json files.
 
@@ -85,6 +80,20 @@ python selector.py
 ```bash
 python llm_as_judge.py
 ```
+
+## Visualization command
+
+To run the visualization, simply run:
+
+```bash
+streamlit run combined_visualizion.py
+```
+
+A browser window with the visualizions should open.
+
+**If using test data for all datasets, the visualization may be slightly congested. This is due to the huge amount of data being filtered and visualized.**
+
+*There is a Develpment flag at the start of both first_visualizion.py and binary_visualization.py that allow to turn off/on the use of test data.*
 
 ## Canonical Metrics
 

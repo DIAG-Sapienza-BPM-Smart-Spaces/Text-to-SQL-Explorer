@@ -6,7 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from langchain.schema.messages import HumanMessage
+from langchain.messages import HumanMessage
 from common_utils import (
     atomic_dump_json,
 )

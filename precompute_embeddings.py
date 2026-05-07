@@ -1,8 +1,31 @@
 from __future__ import annotations
 
+# Minimal runtime fix for "cannot allocate memory in static TLS block" errors
+# when importing scikit-learn / sentence-transformers on some Linux systems.
+# This sets LD_PRELOAD early (before loading extension modules) if a libgomp
+# shared object is available in the active conda env or common system paths.
+import os
+if not os.environ.get("LD_PRELOAD"):
+    candidates = []
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    if conda_prefix:
+        candidates.append(os.path.join(conda_prefix, "lib", "libgomp.so.1"))
+    candidates.extend([
+        "/usr/lib/x86_64-linux-gnu/libgomp.so.1",
+        "/usr/lib64/libgomp.so.1",
+        "/lib/x86_64-linux-gnu/libgomp.so.1",
+    ])
+    for cand in candidates:
+        try:
+            if cand and os.path.exists(cand):
+                os.environ["LD_PRELOAD"] = cand
+                print(f"[INFO] LD_PRELOAD set to {cand} to avoid static TLS allocation errors")
+                break
+        except Exception:
+            pass
+
 import argparse
 import concurrent.futures
-import os
 import threading
 from pathlib import Path
 from typing import Any

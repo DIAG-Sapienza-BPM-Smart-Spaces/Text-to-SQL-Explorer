@@ -22,7 +22,7 @@ def _safe_set_page_config() -> None:
 _safe_set_page_config()
 
 # Development toggle: when True, test binary data is ignored.
-DEVELOPMENT_MODE = True
+DEVELOPMENT_MODE = False
 
 
 MODEL_LABELS = {
