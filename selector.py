@@ -206,7 +206,7 @@ def _load_candidate_sqls(
 def _resolve_api_key_for_model(selector_model: str) -> str:
 	"""Resolve API key from environment variables for a selector model."""
 	if selector_model == "deepseek-chat":
-		return os.getenv("DEEPSEEK_API_KEY", "sk-2675b255bc084d70b188e7fccd0aed15")
+		return os.getenv("DEEPSEEK_API_KEY", "")
 
 	# Optional generic fallback if additional providers are wired in initialize_llm.
 	return os.getenv("SELECTOR_API_KEY", "")

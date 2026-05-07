@@ -2,17 +2,17 @@
 
 In this repository there is the code to both generate and visualize the data for the Demo.
 
-Data are divided in two category: real execution data on bird_development dataset, and test_data available for generation.
+Data are divided in two category: real execution data on bird_development dataset (excluding non-deepseek LLM selectors), and test_data available for generation.
 
-Real execution data is already pre-calculated, while test-data is not. The small data selection direclty available is due to size-issues. More real data is locally stored and is available on-demand.
+Real execution data is already pre-calculated, while test-data is not. The small data selection direcltly available is due to size-issues. More real data is locally stored and is available on-demand.
 
-We suggest to avoid recalculating real data, and instead genereting the test-data on-demand for the visualization.
+We suggest to avoid recalculating real data, and instead generating the test-data (if wanted) for the full demo visualization.
 
 ## Setup
 
 To run the code is necessary to install the libraries in the requirements.txt file.
 
-langchain is actually needed only to genereate real data for the LLM-as-judges, so it may be skipped if focusing on visualization.
+langchain is actually needed only to generate real data for the LLM-as-judges, so it may be skipped if focusing only on the visualization.
 
 We suggest installing the libraries in a conda virtual environment to avoid any issues.
 
@@ -71,7 +71,10 @@ python precompute_embeddings.py
 
 ```bash
 python precompute_similarity_matrices.py
+
 ```
+
+**Next steps require setting and apy_key for deepseek or similar models inside the selector.py and llm_as_judge.py files**
 
 4. Generate pairwise selector judgments (models and datasets must be stated in the code):
 

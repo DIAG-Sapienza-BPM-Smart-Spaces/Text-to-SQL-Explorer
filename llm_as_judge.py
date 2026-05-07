@@ -525,7 +525,7 @@ def compute_binary_choices_for_sqls(
 if __name__ == "__main__":
     model = "deepseek-chat"
     num_threads = 8
-    llm = initialize_llm(model=model, api_key="sk-2675b255bc084d70b188e7fccd0aed15")
+    llm = initialize_llm(model=model, api_key="")
     summary = compute_binary_choices_for_sqls(
         judge_model=model,
         llm=llm,
