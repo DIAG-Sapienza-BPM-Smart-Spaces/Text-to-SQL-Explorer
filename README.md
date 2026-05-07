@@ -20,6 +20,10 @@ We suggest installing the libraries in a conda virtual environment to avoid any 
 conda create -n demo_paper python==3.14
 ```
 
+```bash
+conda activate demo_paper
+```
+
 
 ```bash
 pip install -r requirements.txt
@@ -27,7 +31,7 @@ pip install -r requirements.txt
 ```
 
 ```bash
-conda install -n demo -c conda-forge scikit-learn
+conda install -n demo_paper -c conda-forge scikit-learn
 ```
 
 ## Test-data Generation
