@@ -1,12 +1,16 @@
 ## Repository overview
 
-In this repository there is the code to both generate and visualize the data for the Demo.
+This repository contains the code to run locally the demo of the Text-to-SQL Explorer paper.
 
-Data are divided in two category: real execution data on bird_development dataset, and test_data available for generation.
+With respect to the live demo, due to size constraints this repository includes only a subset of the real execution results on the BIRD development dataset (limited to DeepSeek-based LLM selectors); the complete dataset is available on request and will be provided for the live demo.
 
-Real execution data is already pre-calculated, while test-data is not. The small data selection direclty available is due to size-issues. More real data is locally stored and is available on-demand.
+To reproduce all demo functionalities locally, apart from requesting the complete dataset, it is possible to:
 
-We suggest to avoid recalculating real data, and instead genereting the test-data on-demand for the visualization.
+- Generate synthetic test data locally
+
+- Recompute all real data from scratch (time-consuming)
+
+Both procedures are described below.
 
 ## Setup
 
